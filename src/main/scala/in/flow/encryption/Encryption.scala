@@ -23,18 +23,31 @@ object Encryption {
 
   /** returns a message in base64 format encrypted with the public key */
   def send(message: String, public_key: PublicKey): String = {
-    ???
+    val cipher = Cipher.getInstance(XFORM)
+    cipher.init(Cipher.ENCRYPT_MODE, public_key)
+    val encoded = cipher.doFinal(message.getBytes)
+    val bytes = Base64.getEncoder.encode(encoded)
+    bytesToString(bytes)
+  }
+
+  def getServerPublicKey = ServerEncryption.getServerPublicKey
+
+  private[encryption] def bytesToString(bytes: Array[Byte] ): String = {
+    bytes.map(_.toChar).mkString
   }
 }
 
 private object ServerEncryption {
   import EncryptionSettings.XFORM
+  import Encryption.bytesToString
 
   private val key_directory = "encryption-keys/"
   private val settings_file = "es.txt"
 
   /** Key pair used for all encryption decryption purposes */
-  private val server_key_pair = getServerKey()
+  private val server_key_pair = getServerKey
+
+  private[encryption] def getServerPublicKey = server_key_pair.getPublic
 
   /** takes a message in base64 format and decrypts it with the server key */
   private[encryption] def decrypt(message: String): String = {
@@ -45,11 +58,7 @@ private object ServerEncryption {
     bytesToString(decrypted_bytes)
   }
 
-  private def bytesToString(bytes: Array[Byte] ): String = {
-    bytes.map(_.toChar).mkString
-  }
-
-  private def getServerKey() = {
+  private def getServerKey = {
     val settings = loadSettings()
     val pem_parser = new PEMParser(new FileReader(settings.private_key_path))
     val key_object = pem_parser.readObject()

@@ -4,6 +4,6 @@ import javax.servlet.ServletContext
 
 class ScalatraBootstrap extends LifeCycle {
   override def init(context: ServletContext) {
-    context.mount(new FlowServlet, "/*")
+    context.mount(new FlowServlet, "/v1/*")
   }
 }

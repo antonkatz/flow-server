@@ -1,20 +1,17 @@
 package in.flow.server
 
-import java.io.{ByteArrayInputStream, InputStream}
-import java.util.Base64
-import javax.servlet.{ReadListener, ServletInputStream}
-import javax.servlet.http.{HttpServletRequest, HttpServletRequestWrapper}
+import java.io.{CharArrayWriter, PrintWriter}
+import java.security.PublicKey
+import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
 
-import in.flow.encryption.Encryption
+import in.flow.encryption.{DecryptedRequest, Encryption}
 import in.flow.registration._
-import org.scalatra._
 import org.json4s.{DefaultFormats, Formats, JValue}
-import org.scalatra.json.{JacksonJsonOutput, JacksonJsonSupport}
-import org.slf4j.LoggerFactory
+import org.scalatra._
 import org.scalatra.commands._
-import org.scalatra.json.JsonSupport._
-import org.scalatra.scalate.ScalateSupport
+import org.scalatra.json.JacksonJsonSupport
 import org.scalatra.validation.ValidationError
+import org.slf4j.LoggerFactory
 
 import scalaz.NonEmptyList
 import scalaz.Scalaz._
@@ -42,32 +39,48 @@ class FlowServlet extends FlowServerStack with JacksonJsonParsing with JacksonJs
     )
   }
 
-  override def parsedBody(implicit request: HttpServletRequest): JValue = {
+  override def parsedBody(implicit request: HttpServletRequest): JValue = if (production) {
     val modified_request = new DecryptedRequest(request)
     super.parsedBody(modified_request)
+  } else super.parsedBody(request)
+
+  override protected def renderResponseBody(actionResult: Any): Unit = {
+    def stringify: PartialFunction[Any, String] = {
+      case _: Unit | Unit | null => ""
+      case ar: JValue => compact(render(ar))
+      case ar: String => ar
+      case other => other.toString
+    }
+    val to_string = actionResult match {
+      case ActionResult(_, body, _) => body
+      case other => other
+    }
+    val stringed = stringify(to_string)
+    val enc = Encryption.send(stringed, getSendersPublicKey)
+    val modified_result = actionResult match {
+      case ar: ActionResult => ar.copy(body = enc)
+      case _ => enc
+    }
+    super.renderResponseBody(modified_result)
   }
+
+  protected[flow] def getSendersPublicKey: PublicKey = ???
 
   protected implicit lazy val jsonFormats: Formats = DefaultFormats
 }
 
-class DecryptedRequest(request: HttpServletRequest) extends HttpServletRequestWrapper(request) {
-  override def getInputStream: ServletInputStream = {
-    val original_stream = io.Source.fromInputStream(request.getInputStream())
-    val payload = original_stream.getLines().mkString
-    println("original payload: " + payload)
-    val decrypted = Encryption.receive(payload)
-    println("decrypted: " + decrypted)
-    val replacement_stream = new ByteArrayInputStream(decrypted.getBytes)
-    new ServletInputStreamWrapper(replacement_stream)
+private case class EncryptedJsonResponse(response: String)
+
+import javax.servlet.http.HttpServletResponseWrapper
+
+class ResponseWrapper(response: HttpServletResponse) extends HttpServletResponseWrapper(response) {
+  private val output = new CharArrayWriter()
+
+  override def toString(): String = {
+    output.toString()
   }
-}
 
-class ServletInputStreamWrapper(stream: InputStream) extends ServletInputStream {
-  override def isFinished: Boolean = stream.available() == 0
-
-  override def isReady: Boolean = this.isFinished
-
-  override def setReadListener(readListener: ReadListener): Unit = {}
-
-  override def read(): Int = stream.read()
+  override def getWriter(): PrintWriter = {
+    new PrintWriter(output)
+  }
 }
