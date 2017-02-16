@@ -1,6 +1,7 @@
 package in.flow.security
 
 import java.security.Security
+import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.{IvParameterSpec, SecretKeySpec}
 
@@ -16,7 +17,7 @@ class EncryptionSpec extends WordSpec {
     "asked to decrypt and incoming message" should {
       "return the test message" in {
         val message = "i9XU9uglgIzV+1YZ+27R5RG/CUPmpRda7kQQavlp1LABh0cxylsyvcbqGigKHZhJ2tH8S6ImU2WIB0mAqphPRoPkdGCCm3DM75G8G02bl4gI/x+l338SHhizWMNZGACQRkvDdrt62fmuUx897qMrRLHzateQwpQ7Nk1sCELpdu0wzRoIpsUkZz/9LE2Fj6iDqV9o4RkARbTHj50LHv072F1BjIfnXWWKrkZWb8Ld2JEkr4lJO8ziWJxA2Vs0ESuNA7GrlGiWFfj7WvYJHaJC7Ilkeen2uJANTjjQsuvBULW12VfqDH8inO86QLUb01QVOC6pWD+24VvdCNCmgux8YkUbBcgY4BrFaDWqnj0PyROFaJoRnny9Z16jAB+PMtKQwdoGH9WM3bBw/zVLLSg/V3A670eYrXrqODvkLI4wg7ZJHgBNHtDOx3FeS6iwewy3j9vnsQ1dsFFo1ynKrU/Oy7bJ4QyF9RW3WmJTLGevsbB669EetiJLPzMicjLO7YD7tzVyinNZFhJEJ5jWp1SSZhMHTUEzEpqtHDWKlh/s2lRYUT54gfxAzoTb7MMt9qE/1M/VJPfwYXdGkMozsLMjrNffg1IL38jLsun8CFybhoxXMmj4Bo10RXsgmMY87/4ohp35Pm707KY6DF9H+HvyJBJccnDxgBUo7zWoDMzb0Mo="
-        val decrypted = Encryption.receive(message)
+        val decrypted = Encryption.receive(Base64.getDecoder.decode(message))
         decrypted === test_message
       }
     }
@@ -44,37 +45,30 @@ class EncryptionSpec extends WordSpec {
     "binary data from javascript" should {
       Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
       "be decoded" in {
-        //        val encrypted_bytes =
-//          Array(220, 154, 34, 203, 242, 134, 72, 173, 214, 102, 200, 146, 91, 145, 24, 73).map(_.asInstanceOf[Byte])
-//        val eb_test = encrypted_bytes.map(_.toInt)
-        val maxKeyLen = Cipher.getMaxAllowedKeyLength("AES");
         val encrypted_bytes = hex2bytes("b930d71c90401dbd8b8dc77a68c6114bccd0e032860d0ab5b143eb3f458bf2c9")
         val key_bytes = hex2bytes("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
-//        val key_bytes = (1 to 32).toArray.map(_.toByte)
         val iv = hex2bytes("2122232425262728292a2b2c2d2e2f30")
-//        val iv = (33 until (33+16)).toArray.map(_.toByte)
 
-        val secret = new SecretKeySpec(key_bytes, "AES")
-        val cipher = Cipher.getInstance("AES/CBC/PKCS7Padding")
-//        val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-        cipher.init(Cipher.DECRYPT_MODE, secret, new IvParameterSpec(iv))
-        val plain_bytes = cipher.doFinal(encrypted_bytes)
-        val plaintext = new String(plain_bytes, "UTF-8")
+        val plaintext =
+          Encryption.parseSymmetricKey(key_bytes).map(secret => Encryption.receive(encrypted_bytes, secret, iv)).get
+        plaintext === "TextMustBe16Byte"
         println(plaintext)
       }
 
       "be encoded" in {
         val plaintext = "test - of"
         val key_bytes = hex2bytes("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
-        val iv = hex2bytes("2122232425262728292a2b2c2d2e2f30")
 
-        val algo = "AES/CBC/PKCS7Padding"
-        val secret = new SecretKeySpec(key_bytes, algo)
-        val cipher = Cipher.getInstance(algo)
-        cipher.init(Cipher.ENCRYPT_MODE, secret, new IvParameterSpec(iv))
-        val plain_bytes = cipher.doFinal(plaintext.getBytes("UTF-8"))
-          .map(_ & 0xFF)
-        println(plain_bytes.toList)
+        val enc1 = Encryption.parseSymmetricKey(key_bytes).map {secret => Encryption.send(plaintext, secret)}.get
+        assert(enc1.iv.length == 16)
+        assert(enc1.message.length > 0)
+        val enc2 = Encryption.parseSymmetricKey(key_bytes).map {secret => Encryption.send(plaintext, secret)}.get
+//        the results of the second run should be different from the first
+        assert {!(enc1.iv sameElements enc2.iv)}
+        assert {!(enc1.message sameElements enc2.message)}
+
+        println(enc1.message.toList)
+        println(enc2.message.toList)
       }
     }
   }

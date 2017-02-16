@@ -14,8 +14,9 @@ import org.scalatra.ActionResult
 
 class DecryptedServletRequest(request: HttpServletRequest) extends HttpServletRequestWrapper(request) {
   override def getInputStream: ServletInputStream = {
-    val original_stream = io.Source.fromInputStream(request.getInputStream())
-    val payload = original_stream.getLines().mkString
+    val original_stream = request.getInputStream()
+//    val payload = original_stream.getLines().mkString
+    val payload = Stream.continually(original_stream.read()).takeWhile(_ != -1).map(_.toByte).toArray
     val decrypted = Encryption.receive(payload)
     val replacement_stream = new ByteArrayInputStream(decrypted.getBytes)
     new ServletInputStreamWrapper(replacement_stream)

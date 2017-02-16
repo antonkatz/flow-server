@@ -1,36 +1,41 @@
 package in.flow.security
 
-import java.io.{File, FileReader, StringReader}
+import java.io.{FileReader, StringReader}
 import java.security.{KeyPair, PublicKey}
 import java.util.Base64
+import javax.crypto.spec.{IvParameterSpec, SecretKeySpec}
 import javax.crypto.{Cipher, KeyGenerator, SecretKey}
 
-import org.bouncycastle.asn1.pkcs.RSAPublicKey
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.bouncycastle.openssl.{PEMDecryptorProvider, PEMEncryptedKeyPair, PEMParser}
 import org.bouncycastle.openssl.jcajce.{JcaPEMKeyConverter, JcePEMDecryptorProviderBuilder}
+import org.bouncycastle.openssl.{PEMDecryptorProvider, PEMEncryptedKeyPair, PEMParser}
 
 /**
   * All communications with the server must happen through encryption.
   * This object provides the necessary methods to decrypt incoming messages and encrypt outgoing messages.
   */
 object Encryption {
-  import EncryptionSettings.asymmetric_cipher_type
-
-  /** takes a message in base64 format and decrypts it with the server key */
-  def receive(message: String): String = {
-    AsymmetricEncryption.decrypt(message)
+  /** takes a message as bytes format and decrypts it with the server key */
+  def receive(message: Array[Byte]): String = {
+    getString(receiveAsBytes(message))
   }
 
-  /** returns a message as bytes encrypted with the public key or a symmetrical cipher */
-  def send(message: String, public_key: PublicKey): String = {
-    val cipher = Cipher.getInstance(asymmetric_cipher_type)
-    cipher.init(Cipher.ENCRYPT_MODE, public_key)
-    val encoded = cipher.doFinal(message.getBytes)
-    val bytes = Base64.getEncoder.encode(encoded)
-    bytesToString(bytes)
+  /** takes a symmetrically encrypted message, and returns decrypted bytes */
+  def receiveAsBytes(message: Array[Byte]): Array[Byte] = AsymmetricEncryption.decrypt(message)
+
+  /** takes a symmetrically encrypted message, and returns decrypted string */
+  def receive(message: Array[Byte], key: SecretKey, iv: Array[Byte]): String = {
+    getString(SymmetricEncryption.receive(message, key, iv))
   }
+
+  /** returns a message (parsed as UTF-8) as bytes encrypted with the public key or asymmetrical cipher */
+  def send(message: String, public_key: PublicKey): Array[Byte] =
+    AsymmetricEncryption.send(getBytes(message), public_key)
+
+  /** returns a message as bytes encrypted with a symmetrical cipher */
+  def send(message: String, secret_key: SecretKey): SymmetricallyEncrypted =
+    SymmetricEncryption.send(getBytes(message), secret_key)
 
   def parsePublicKey(key_string: String): Option[PublicKey] = {
     def checkAndGetAsPublic: PartialFunction[Object, PublicKey] = {
@@ -48,16 +53,47 @@ object Encryption {
     generator.generateKey()
   }
 
-  def getServerPublicKey = AsymmetricEncryption.getServerPublicKey
+  def parseSymmetricKey(bytes: Array[Byte]): Option[SecretKey] = SymmetricEncryption.parseKeyFromBytes(bytes)
 
-  private[security] def bytesToString(bytes: Array[Byte] ): String = {
-    bytes.map(_.toChar).mkString
+  def getServerPublicKey: PublicKey = AsymmetricEncryption.getServerPublicKey
+
+  private[security] def getString(bytes: Array[Byte]): String = {
+    new String(bytes, EncryptionSettings.string_encoding)
+  }
+
+  private[security] def getBytes(msg: String) = msg.getBytes(EncryptionSettings.string_encoding)
+}
+
+private object SymmetricEncryption {
+  /** returns a (message, iv) tuple */
+  private[security] def send(message: Array[Byte], key: SecretKey): SymmetricallyEncrypted = {
+    val cipher = Cipher.getInstance(EncryptionSettings.symmetric_cipher_type)
+    cipher.init(Cipher.ENCRYPT_MODE, key)
+    val params = cipher.getParameters
+    val iv = params.getParameterSpec(classOf[IvParameterSpec]).getIV
+    SymmetricallyEncrypted(cipher.doFinal(message), iv)
+  }
+
+  private[security] def receive(message: Array[Byte], key: SecretKey, iv: Array[Byte]): Array[Byte] = {
+    val cipher = Cipher.getInstance(EncryptionSettings.symmetric_cipher_type)
+    cipher.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv))
+    cipher.doFinal(message)
+  }
+
+  private[security] def parseKeyFromBytes(key_bytes: Array[Byte]): Option[SecretKey] = try {
+    Some(new SecretKeySpec(key_bytes, EncryptionSettings.symmetric_cipher_key_type))
+  } catch {
+    case _: Throwable => None
   }
 }
 
+case class SymmetricallyEncrypted(message: Array[Byte], iv: Array[Byte])
+
+
 private object AsymmetricEncryption {
+
+  import Encryption.getString
   import EncryptionSettings.asymmetric_cipher_type
-  import Encryption.bytesToString
 
   private val key_directory = "encryption-keys/"
   private val settings_file = "es.txt"
@@ -68,30 +104,29 @@ private object AsymmetricEncryption {
   private[security] def getServerPublicKey = server_key_pair.getPublic
 
   /** takes a message in base64 format and decrypts it with the server key */
-  private[security] def decrypt(message: String): String = {
+  private[security] def decrypt(message: String): Array[Byte] = {
     val decoded_msg = Base64.getDecoder.decode(message)
     decrypt(decoded_msg)
   }
 
   /** takes a message as bytes and decrypts it with the server key */
-  private[security] def decrypt(message: Array[Byte]): String = {
+  private[security] def decrypt(message: Array[Byte]): Array[Byte] = {
     val cipher = Cipher.getInstance(asymmetric_cipher_type)
     cipher.init(Cipher.DECRYPT_MODE, server_key_pair.getPrivate)
-    val decrypted_bytes = cipher.doFinal(message)
-    bytesToString(decrypted_bytes)
+    cipher.doFinal(message)
   }
 
   /** takes a message and encodes it with the given key */
-  private[security] def send(message: String, public_key: PublicKey): Array[Byte] = {
+  private[security] def send(message: Array[Byte], public_key: PublicKey): Array[Byte] = {
     val cipher = Cipher.getInstance(asymmetric_cipher_type)
     cipher.init(Cipher.ENCRYPT_MODE, public_key)
-    cipher.doFinal(message.getBytes)
+    cipher.doFinal(message)
   }
 
   /** same as the other send, returning base64 string instead of bytes */
-  private[security] def sendAsString(message: String, public_key: PublicKey): String = {
+  private[security] def sendAsString(message: Array[Byte], public_key: PublicKey): String = {
     val bytes = Base64.getEncoder.encode(send(message, public_key))
-    bytesToString(bytes)
+    getString(bytes)
   }
 
   private def getServerKey = {
@@ -125,11 +160,13 @@ private object AsymmetricEncryption {
   }
 
   private case class Settings(pass: String, private_key_path: String)
+
 }
 
 private object EncryptionSettings {
   private[security] val asymmetric_cipher_type = "RSA"
   private[security] val symmetric_cipher_key_type = "AES"
-  private[security] val symmetric_cipher_type = "AES/CBC"
+  private[security] val symmetric_cipher_type = "AES/CBC/PKCS7Padding"
   private[security] val symmetric_cipher_key_size = 256
+  private[security] val string_encoding = "UTF-8"
 }
