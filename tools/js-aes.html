@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Encryption test</title>
+    <script type="text/javascript" src="https://cdn.rawgit.com/ricmoo/aes-js/e27b99df/index.js"></script>
+</head>
+<body>
+
+<script>
+    // An example 128-bit key
+    var key = generateBits(1, 32);
+    console.log("key", aesjs.utils.hex.fromBytes(key));
+
+    // The initialization vector (must be 16 bytes)
+    var iv = generateBits(33, 16);
+    console.log("iv", aesjs.utils.hex.fromBytes(iv));
+
+    // Convert text to bytes (text must be a multiple of 16 bytes)
+    var text = 'TextMustBe16Byte';
+    var textBytes = aesjs.utils.utf8.toBytes(text);
+    var padded = aesjs.padding.pkcs7.pad(textBytes)
+
+    var aesCbc = new aesjs.ModeOfOperation.cbc(key, iv);
+    var encryptedBytes = aesCbc.encrypt(padded);
+
+    // To print or store the binary data, you may convert it to hex
+    var encryptedHex = aesjs.utils.hex.fromBytes(encryptedBytes);
+    var encryptedBase64 = btoa(encryptedBytes)
+
+    console.log(textBytes)
+    console.log(padded)
+    console.log("encrypted")
+    console.log(encryptedBytes);
+    console.log(encryptedHex);
+//    console.log(encryptedBase64);
+    // "104fb073f9a131f2cab49184bb864ca2"
+
+    // When ready to decrypt the hex string, convert it back to bytes
+//    var encryptedBytes = aesjs.utils.hex.toBytes(encryptedHex);
+//    var encryptedBytes = atob(encryptedBase64);
+
+    /** encrypted with 7 */
+    var encryptedBytes = [166, 114, 34, 64, 160, 210, 134, 24, 154, 115, 177, 34, 22, 95, 246, 12]
+    /** encrypted with 5 */
+//    var encryptedBytes = [54, 10, 104, 224, 165, 89, 82, 86, 227, 187, 122, 111, 217, 18, 0, 145]
+    /** both work, hmm */
+
+    // The cipher-block chaining mode of operation maintains internal
+    // state, so to decrypt a new instance must be instantiated.
+    var aesCbc = new aesjs.ModeOfOperation.cbc(key, iv);
+    var decryptedBytes = aesCbc.decrypt(encryptedBytes);
+    console.log("decrypted")
+    console.log("starting with", encryptedBytes)
+    console.log(decryptedBytes)
+
+    // Convert our bytes back into text
+    var decryptedText = aesjs.utils.utf8.fromBytes(decryptedBytes);
+    console.log(decryptedText);
+    // "TextMustBe16Byte"
+
+
+    // generates array of consecutive numbers
+    function generateBits(start, length) {
+        let list = [];
+        for (let i = start; i < (start + length); i++) {
+            list.push(i)
+        }
+        return list;
+    }
+</script>
+
+</body>
+</html>

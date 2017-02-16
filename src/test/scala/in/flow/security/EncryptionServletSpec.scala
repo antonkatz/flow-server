@@ -1,4 +1,4 @@
-package in.flow.encryption
+package in.flow.security
 
 import java.security.PublicKey
 
@@ -46,7 +46,7 @@ object TestVariables {
 }
 
 class ProductionTestServlet extends FlowServlet {
-  override protected val production: Boolean = true
+  override protected val decrypt_incoming: Boolean = true
 
   post("/decryption") {
     if (parsedBody == TestVariables.incoming_body_json) Ok() else halt(400)

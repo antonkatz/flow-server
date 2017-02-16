@@ -1,13 +1,12 @@
-package in.flow.registration
+package in.flow.users.registration
 
-import org.json4s.{DefaultFormats, DefaultJsonFormats, Formats}
-
-import scalaz._
-import scalaz.Scalaz._
+import org.json4s.{DefaultFormats, Formats}
 import org.scalatra.commands._
 import org.scalatra.validation.ValidationError
 
 import scala.language.implicitConversions
+import scalaz.Scalaz._
+import scalaz._
 
 /**
   * Created by anton on 20/01/17.

@@ -10,7 +10,7 @@ import collection.mutable
 trait FlowServerStack extends ScalatraServlet with ScalateSupport {
 
   /** VERY IMPORTANT FLAG. Turns on and off encryption. */
-  protected val production = true
+  protected val decrypt_incoming = false
 
   notFound {
     // remove content type in case it was set through an action
