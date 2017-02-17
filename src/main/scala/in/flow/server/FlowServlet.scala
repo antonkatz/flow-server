@@ -18,16 +18,32 @@ import org.slf4j.LoggerFactory
 import scala.language.implicitConversions
 import scalaz.NonEmptyList
 import scalaz.Scalaz._
+import in.flow.security.NeedSymmetricKey
 
 class FlowServlet extends FlowServerStack with JacksonJsonParsing with JacksonJsonSupport {
   private val log = LoggerFactory.getLogger("Servlet /v1")
 
-  private[this] implicit var security: Security = _
+  private var security_object: Security = _
+  implicit def security = security_object
+
+  override def handle(req: HttpServletRequest, res: HttpServletResponse): Unit = {
+    security_object = ServletSecurity.apply(req)
+    super.handle(req, res)
+  }
 
   before() {
     contentType = formats("json")
-    security = ServletSecurity.apply
-    Security.provideError map {_ => halt(401, "Most likely cause is decryption error")}
+    Security.provideError map {
+      case _: NeedSymmetricKey => halt(412, "The server no longer has the symmetric key")
+      case _ => halt(401, "Most likely cause is decryption error")
+    }
+  }
+
+  after() {() =>
+    Security.provideError map {
+      case _: NeedAsymmetricKey => halt(412, "The server does not have a viable public key for the user")
+      case _ => halt(401, "Most likely cause is encryption error")
+    }
   }
 
   get("/") {
@@ -39,10 +55,15 @@ class FlowServlet extends FlowServerStack with JacksonJsonParsing with JacksonJs
     val cmd = command[RegisterCommand]
     log.info("with name {}, invitation code {}, public key {};",
       ~cmd.name.value, ~cmd.invitation_code.value, ~cmd.public_key.value)
+
+    Security.setPublicKey(~cmd.public_key.value)
+
     val cmd_result = cmd >> (RegisterCommand.performRegistration(_))
     cmd_result.fold(
       (errors: NonEmptyList[ValidationError]) => halt(400, errors.head),
-      success => Ok(success)
+      success => {
+        Ok(success)
+      }
     )
   }
 

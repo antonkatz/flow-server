@@ -4,6 +4,7 @@ import java.security.PublicKey
 import java.util.Base64
 
 import in.flow.server.FlowServlet
+import org.bouncycastle.util.encoders.Hex
 import org.scalatest.WordSpec
 import org.scalatra.Ok
 import org.scalatra.test.scalatest._
@@ -33,9 +34,16 @@ class EncryptionServletSpec extends WordSpec with ScalatraSuite {
         }
 
         "encrypt through a filter" in {
-          get("/encryption") {
-            val decrypted_body = Encryption.receive(body)
-            decrypted_body should equal(TestVariables.outgoing_body_plain)
+          val pk = "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAvq7+LdGjlYwk4y8iov2x\ngSZElxrFNbpkJguDJVFwJDFh+GcXZOENOQ8LOEKAHFq9pLm5hxZspjE9EajT9SlD\nmLu89Vq82r1Rls5crPG3c2eIPlb3+IBG22WG63Sbl71AKYk90CXXmfmCfEkydacz\nnSBpzuoUGpt7VUH5XIe4NRPT6oJqcK7GN2ZO5csguMhj+5vcNIWC3+x3oCEMrm1W\nB4ifU8CU4Tdf0tZ/n2rVCe0H/F42wBAgyH3Nfv3XPMpo2h9CbUpmaANARS0gIXSb\nrSrPwAPhrQIElJ0eWU/YAqLVjdczr6PPdiQYo1HLhb8IZFU9eanYRC+HGHjooq0A\nOaHbPUywzxNHwmmC/Eh17PdBIvwJe0rTy4JLDz8mDz5mQpbeB8hMCyOk9mHFu8cJ\nW0digUadNTZMFHkMSq6pGGfdAzH7CGf7IZ5oXYt1wGVBqO2VRx2zOuoSh5cPyQoz\nuzzJTOGCXCzOBvUXc25RvAhcHCokLVkEWOY/p+sYRmBn8IOsUXqjW437WUUsCRwQ\nOLXe0VrofdvCtwmIEk4oriSGo6zrbFC3vqf0GmQuDpdjprM3dnXevfDWejAGWl06\ndBHLTGQx6kWNGkxKw5mDikVF+f/6+8g8nVetNEH34qzVduPk9+LY09T0dxaGuXoS\nRPCMi9MxK/SUFEPiiW02R18CAwEAAQ==\n-----END PUBLIC KEY-----"
+          val h: Iterable[(String, String)] = Map("pk" -> Base64.getEncoder.encodeToString(pk))
+          post(uri = "/encryption", body = "", headers = h) {
+            val iv = Hex.decode(response.getHeader("iv"))
+            val dsk = Encryption.receiveAsBytes(Hex.decode(response.getHeader("key")))
+            val symmetric_key = Encryption.parseSymmetricKey(Hex.decode(dsk)).get
+
+            status should be (200)
+            val decrypted_body = Encryption.receive(bodyBytes, symmetric_key, iv)
+            new String(decrypted_body) should equal(TestVariables.outgoing_body_plain)
           }
         }
       }
@@ -59,7 +67,9 @@ class ProductionTestServlet extends FlowServlet {
     if (parsedBody == TestVariables.incoming_body_json) Ok() else halt(400)
   }
 
-  get("/encryption") {
+  post("/encryption") {
+    val public_key = Base64.getDecoder.decode(request.getHeader("pk")).map(_.toChar).mkString
+    Security.setPublicKey(public_key)
     TestVariables.outgoing_body_plain
   }
 

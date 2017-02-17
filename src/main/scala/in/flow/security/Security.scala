@@ -4,6 +4,7 @@ import java.security.PublicKey
 import javax.crypto.SecretKey
 
 import in.flow.users.User
+import org.bouncycastle.util.encoders.Hex
 
 import scala.concurrent.Future
 import scala.util.control.Exception._
@@ -15,9 +16,12 @@ import scala.util.control.Exception._
   * needs of different libraries on the clients side
   */
 class Security(private val user: Option[User], private val decryption_iv: Option[Array[Byte]]) {
-  private val cipher_key: SecretKey = Security.getKey(this)
+  private lazy val symmetric_key: SecretKey = Security.getKey(this)
 
-  private val return_public_key: Option[PublicKey] = None
+  /** indicates if the cipher key came from cache or was generated; if generated, user does not have a copy */
+  private var symmetric_key_is_new = true
+
+  private var return_public_key: Option[PublicKey] = None
 
   private var error: Option[Throwable] = None
 
@@ -42,7 +46,7 @@ object Security {
   private def catchExceptionToSecurity[T](function: () => T)(implicit s: Security): Either[Throwable, T] = {
     val res = allCatch either function()
     s.error = res.left.toOption
-    s.canExecute = false
+    if (s.error.nonEmpty) {s.canExecute = false}
     res
   }
 
@@ -53,23 +57,45 @@ object Security {
   }
 
   private def receivePayload_(payload: Array[Byte])(implicit s: Security): Array[Byte] = s.decryption_iv match {
-    case Some(iv) => Encryption.receive(payload, s.cipher_key, iv)
+    case Some(iv) => if (!s.symmetric_key_is_new) {
+      Encryption.receive(payload, s.symmetric_key, iv)
+    } else {throw new NeedSymmetricKey}
     case None => Encryption.receiveAsBytes(payload)
   }
 
-  /** Whether this [[Security]] can encrypt symmetrically */
-  def canEncryptSymmetrically(implicit s: Security): Boolean = s.decryption_iv.fold(false)(_ => true)
+  def sendPayload(payload: String)(implicit s: Security): Either[Throwable, SymmetricallyEncrypted] = execute {() =>
+    Encryption.send(payload, s.symmetric_key)
+  }
+
+  /** if the user needs a copy of the cipher, then this will return it, encrypted with the public key */
+  def sendSymmetricKey(implicit s: Security): Option[Array[Byte]] = {
+    execute({() => // add if new only
+      val key = Hex.toHexString(s.symmetric_key.getEncoded)
+      s.return_public_key map {pk => Encryption.send(key, pk)}
+    }).right.toOption.flatten
+  }
 
   def provideError(implicit s: Security): Option[Throwable] = s.error
 
-  /** the key never leaves this class unencrypted */
-  def provideSymmetricKey(implicit s: Security): Option[Array[Byte]] = s.return_public_key map { pk =>
-    Encryption.send(s.cipher_key.getEncoded, pk)
+  def setPublicKey(key_string: String)(implicit s: Security): Option[Throwable] = {
+    execute[Unit] {() =>
+      s.return_public_key = Encryption.parsePublicKey(key_string)
+      if (s.return_public_key.isEmpty) throw new NeedAsymmetricKey
+    }.left.toOption
   }
 
-  private def getKey(implicit security: Security) = security.user flatMap SymmetricKeyCache.retrieve getOrElse {
-    Encryption.generateSymmetricKey
+  /** the key never leaves this class unencrypted */
+  def provideSymmetricKey(implicit s: Security): Option[Array[Byte]] = s.return_public_key map { pk =>
+    Encryption.send(s.symmetric_key.getEncoded, pk)
   }
+
+  /** Whether this [[Security]] can encrypt symmetrically */
+  private def canEncryptSymmetrically(implicit s: Security): Boolean = s.decryption_iv.fold(false)(_ => true)
+
+  private def getKey(implicit security: Security) = (security.user flatMap SymmetricKeyCache.retrieve).fold {
+    security.symmetric_key_is_new = true
+    Encryption.generateSymmetricKey
+  } {k => security.symmetric_key_is_new = false; k}
 }
 
 private object SymmetricKeyCache {
@@ -84,3 +110,7 @@ private object SymmetricKeyCache {
     ???
   }
 }
+
+class NeedSymmetricKey extends Error
+
+class NeedAsymmetricKey extends Error

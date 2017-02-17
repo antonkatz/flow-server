@@ -23,10 +23,10 @@ object Encryption {
     getString(receiveAsBytes(message))
   }
 
-  /** takes a symmetrically encrypted message, and returns decrypted bytes */
+  /** takes asymmetrically encrypted message, and returns decrypted bytes */
   def receiveAsBytes(message: Array[Byte]): Array[Byte] = AsymmetricEncryption.decrypt(message)
 
-  /** takes a symmetrically encrypted message, and returns decrypted bytes */
+  /** takes symmetrically encrypted message, and returns decrypted bytes */
   def receive(message: Array[Byte], key: SecretKey, iv: Array[Byte]): Array[Byte] = {
     SymmetricEncryption.receive(message, key, iv)
   }
@@ -174,5 +174,5 @@ private object EncryptionSettings {
   private[security] val symmetric_cipher_key_type = "AES"
   private[security] val symmetric_cipher_type = "AES/CBC/PKCS7Padding"
   private[security] val symmetric_cipher_key_size = 256
-  private[security] val string_encoding = "UTF-8"
+  private[security] val string_encoding = in.flow.global_string_format
 }

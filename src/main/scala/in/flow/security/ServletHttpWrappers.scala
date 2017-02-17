@@ -14,13 +14,7 @@ import org.scalatra.servlet.RichRequest
   */
 
 class DecryptedRichRequest(request: HttpServletRequest)(implicit security: Security)
-  extends RichRequest(DecryptedRichRequest.wrapRequest(request, security)) {
-
-  override def inputStream: InputStream = {
-    println("\n\nGetting input stream of Rich request")
-    DecryptedRichRequest.replacementStream(request, security)
-  }
-}
+  extends RichRequest(DecryptedRichRequest.wrapRequest(request, security))
 
 object DecryptedRichRequest {
   private def wrapRequest(implicit r: HttpServletRequest, s: Security): HttpServletRequestWrapper =
@@ -48,25 +42,4 @@ class ServletInputStreamWrapper(stream: InputStream) extends ServletInputStream 
   override def setReadListener(readListener: ReadListener): Unit = throw new NotImplementedError()
 
   override def read(): Int = stream.read()
-}
-
-/** For encryption of the body that is sent back to the user */
-object ServletEncryption {
-
-  import org.json4s.jackson.JsonMethods._
-
-  /** This method breaks some of the functionality of Scalatra, but none of the important functions (that's the hope) */
-  def encrypt(actionResult: Any, senders_public_key: PublicKey): Any = {
-    val to_string = actionResult match {
-      case ActionResult(_, body, _) => body
-      case other => other
-    }
-    val stringed = stringify(to_string)
-    val enc = ServletSecurity.send(stringed)
-    actionResult match {
-      case ar: ActionResult => ar.copy(body = enc)
-      case _ => enc
-    }
-  }
-
 }
