@@ -5,6 +5,7 @@ import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.{IvParameterSpec, SecretKeySpec}
 
+import in.flow.utils.Hex
 import org.scalatest.WordSpec
 
 /**
@@ -43,11 +44,10 @@ class EncryptionSpec extends WordSpec {
     }
 
     "binary data from javascript" should {
-      Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
       "be decoded" in {
-        val encrypted_bytes = hex2bytes("b930d71c90401dbd8b8dc77a68c6114bccd0e032860d0ab5b143eb3f458bf2c9")
-        val key_bytes = hex2bytes("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
-        val iv = hex2bytes("2122232425262728292a2b2c2d2e2f30")
+        val encrypted_bytes = Hex.parse("b930d71c90401dbd8b8dc77a68c6114bccd0e032860d0ab5b143eb3f458bf2c9")
+        val key_bytes = Hex.parse("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
+        val iv = Hex.parse("2122232425262728292a2b2c2d2e2f30")
 
         val plaintext =
           Encryption.parseSymmetricKey(key_bytes).map(secret => Encryption.receive(encrypted_bytes, secret, iv)).get
@@ -57,7 +57,7 @@ class EncryptionSpec extends WordSpec {
 
       "be encoded" in {
         val plaintext = "test - of"
-        val key_bytes = hex2bytes("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
+        val key_bytes = Hex.parse("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
 
         val enc1 = Encryption.parseSymmetricKey(key_bytes).map {secret => Encryption.send(plaintext, secret)}.get
         assert(enc1.iv.length == 16)
@@ -70,16 +70,6 @@ class EncryptionSpec extends WordSpec {
         println(enc1.message.toList)
         println(enc2.message.toList)
       }
-    }
-  }
-
-  def hex2bytes(hex: String): Array[Byte] = {
-    if(hex.contains(" ")){
-      hex.split(" ").map(Integer.parseInt(_, 16).toByte)
-    } else if(hex.contains("-")){
-      hex.split("-").map(Integer.parseInt(_, 16).toByte)
-    } else {
-      hex.sliding(2,2).toArray.map(Integer.parseInt(_, 16).toByte)
     }
   }
 }

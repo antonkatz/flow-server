@@ -16,6 +16,8 @@ import org.bouncycastle.openssl.{PEMDecryptorProvider, PEMEncryptedKeyPair, PEMP
   * This object provides the necessary methods to decrypt incoming messages and encrypt outgoing messages.
   */
 object Encryption {
+  java.security.Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider())
+
   /** takes a message as bytes format and decrypts it with the server key */
   def receive(message: Array[Byte]): String = {
     getString(receiveAsBytes(message))
@@ -24,14 +26,18 @@ object Encryption {
   /** takes a symmetrically encrypted message, and returns decrypted bytes */
   def receiveAsBytes(message: Array[Byte]): Array[Byte] = AsymmetricEncryption.decrypt(message)
 
-  /** takes a symmetrically encrypted message, and returns decrypted string */
-  def receive(message: Array[Byte], key: SecretKey, iv: Array[Byte]): String = {
-    getString(SymmetricEncryption.receive(message, key, iv))
+  /** takes a symmetrically encrypted message, and returns decrypted bytes */
+  def receive(message: Array[Byte], key: SecretKey, iv: Array[Byte]): Array[Byte] = {
+    SymmetricEncryption.receive(message, key, iv)
   }
 
   /** returns a message (parsed as UTF-8) as bytes encrypted with the public key or asymmetrical cipher */
   def send(message: String, public_key: PublicKey): Array[Byte] =
     AsymmetricEncryption.send(getBytes(message), public_key)
+
+  /** returns a message (parsed as UTF-8) as bytes encrypted with the public key or asymmetrical cipher */
+  def send(message: Array[Byte], public_key: PublicKey): Array[Byte] =
+    AsymmetricEncryption.send(message, public_key)
 
   /** returns a message as bytes encrypted with a symmetrical cipher */
   def send(message: String, secret_key: SecretKey): SymmetricallyEncrypted =

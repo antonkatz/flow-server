@@ -2,24 +2,40 @@ package in.flow.security
 
 import java.io.{ByteArrayInputStream, InputStream}
 import java.security.PublicKey
-import javax.servlet.{ReadListener, ServletInputStream}
 import javax.servlet.http.{HttpServletRequest, HttpServletRequestWrapper}
+import javax.servlet.{ReadListener, ServletInputStream}
 
 import org.json4s._
 import org.scalatra.ActionResult
+import org.scalatra.servlet.RichRequest
 
 /**
   * Boilerplate for the server to decrypt / encrypt on the fly
   */
 
-class DecryptedServletRequest(request: HttpServletRequest) extends HttpServletRequestWrapper(request) {
-  override def getInputStream: ServletInputStream = {
-    val original_stream = request.getInputStream()
-//    val payload = original_stream.getLines().mkString
-    val payload = Stream.continually(original_stream.read()).takeWhile(_ != -1).map(_.toByte).toArray
-    val decrypted = Encryption.receive(payload)
-    val replacement_stream = new ByteArrayInputStream(decrypted.getBytes)
-    new ServletInputStreamWrapper(replacement_stream)
+class DecryptedRichRequest(request: HttpServletRequest)(implicit security: Security)
+  extends RichRequest(DecryptedRichRequest.wrapRequest(request, security)) {
+
+  override def inputStream: InputStream = {
+    println("\n\nGetting input stream of Rich request")
+    DecryptedRichRequest.replacementStream(request, security)
+  }
+}
+
+object DecryptedRichRequest {
+  private def wrapRequest(implicit r: HttpServletRequest, s: Security): HttpServletRequestWrapper =
+    new HttpServletRequestWrapper(r) {
+    override def getInputStream: ServletInputStream = {
+      println("Getting input stream of Wrapped request")
+      new ServletInputStreamWrapper(replacementStream)
+    }
+  }
+  private def replacementStream(implicit r: HttpServletRequest, s: Security): InputStream = {
+    // if there is an error, then the input stream should be empty;
+    // halting will be taken care of somewhere else
+    val decrypted: Array[Byte] = ServletSecurity.receive.fold(_ => Array[Byte](), a => a)
+    val replacement_stream = new ByteArrayInputStream(decrypted)
+    replacement_stream
   }
 }
 
@@ -28,13 +44,15 @@ class ServletInputStreamWrapper(stream: InputStream) extends ServletInputStream 
 
   override def isReady: Boolean = this.isFinished
 
-  override def setReadListener(readListener: ReadListener): Unit = {}
+  /** Hopefully this does not break things */
+  override def setReadListener(readListener: ReadListener): Unit = throw new NotImplementedError()
 
   override def read(): Int = stream.read()
 }
 
 /** For encryption of the body that is sent back to the user */
 object ServletEncryption {
+
   import org.json4s.jackson.JsonMethods._
 
   /** This method breaks some of the functionality of Scalatra, but none of the important functions (that's the hope) */
@@ -44,17 +62,11 @@ object ServletEncryption {
       case other => other
     }
     val stringed = stringify(to_string)
-    val enc = Encryption.send(stringed, senders_public_key)
+    val enc = ServletSecurity.send(stringed)
     actionResult match {
       case ar: ActionResult => ar.copy(body = enc)
       case _ => enc
     }
   }
 
-  private def stringify: PartialFunction[Any, String] = {
-    case _: Unit | Unit | null => ""
-    case ar: JValue => compact(render(ar))
-    case ar: String => ar
-    case other => other.toString
-  }
 }
