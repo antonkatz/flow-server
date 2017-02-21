@@ -59,7 +59,9 @@ object Security {
   private def receivePayload_(payload: Array[Byte])(implicit s: Security): Array[Byte] = s.decryption_iv match {
     case Some(iv) => if (!s.symmetric_key_is_new) {
       Encryption.receive(payload, s.symmetric_key, iv)
-    } else {throw new NeedSymmetricKey}
+    } else {
+      throw new NeedSymmetricKey
+    }
     case None => Encryption.receiveAsBytes(payload)
   }
 
@@ -70,8 +72,10 @@ object Security {
   /** if the user needs a copy of the cipher, then this will return it, encrypted with the public key */
   def sendSymmetricKey(implicit s: Security): Option[Array[Byte]] = {
     execute({() => // add if new only
-      val key = Hex.toHexString(s.symmetric_key.getEncoded)
-      s.return_public_key map {pk => Encryption.send(key, pk)}
+      if(s.symmetric_key_is_new) {
+        val key = Hex.toHexString(s.symmetric_key.getEncoded)
+        s.return_public_key map { pk => Encryption.send(key, pk) }
+      } else None
     }).right.toOption.flatten
   }
 

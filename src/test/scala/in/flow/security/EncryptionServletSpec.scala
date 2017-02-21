@@ -9,6 +9,8 @@ import org.scalatest.WordSpec
 import org.scalatra.Ok
 import org.scalatra.test.scalatest._
 
+import scala.util.Random
+
 /**
   * For testing encryption filters on the servlet
   */
@@ -47,6 +49,16 @@ class EncryptionServletSpec extends WordSpec with ScalatraSuite {
           }
         }
       }
+
+      "replying" should {
+        "notify if it cannot decrypt the payload" in {
+          val iv = new Array[Byte](16)
+          Random.nextBytes(iv)
+          post("/fail-decryption", body="something", headers = Map("iv" -> Hex.toHexString(iv))) {
+              status should be (421)
+          }
+        }
+      }
     }
 }
 
@@ -68,9 +80,14 @@ class ProductionTestServlet extends FlowServlet {
   }
 
   post("/encryption") {
+    println("@ /ENCRYPTION")
     val public_key = Base64.getDecoder.decode(request.getHeader("pk")).map(_.toChar).mkString
     Security.setPublicKey(public_key)
     TestVariables.outgoing_body_plain
+  }
+
+  post("/fail-decryption") {
+    println("@ /fail-decryption")
   }
 
   override protected[flow] def getSendersPublicKey: PublicKey = Encryption.getServerPublicKey

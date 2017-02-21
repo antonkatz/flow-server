@@ -21,7 +21,7 @@ import scalaz.Scalaz._
 import in.flow.security.NeedSymmetricKey
 
 class FlowServlet extends FlowServerStack with JacksonJsonParsing with JacksonJsonSupport {
-  private val log = LoggerFactory.getLogger("Servlet /v1")
+  protected val log = LoggerFactory.getLogger("Servlet /v1")
 
   private var security_object: Security = _
   implicit def security = security_object
@@ -34,15 +34,17 @@ class FlowServlet extends FlowServerStack with JacksonJsonParsing with JacksonJs
   before() {
     contentType = formats("json")
     Security.provideError map {
-      case _: NeedSymmetricKey => halt(412, "The server no longer has the symmetric key")
+      case _: NeedSymmetricKey => halt(421, "The server no longer has the symmetric key")
       case _ => halt(401, "Most likely cause is decryption error")
     }
   }
 
-  after() {() =>
+  after() {
     Security.provideError map {
-      case _: NeedAsymmetricKey => halt(412, "The server does not have a viable public key for the user")
-      case _ => halt(401, "Most likely cause is encryption error")
+      case _: NeedAsymmetricKey =>
+        halt(412, "The server does not have a viable public key for the user")
+      case _ =>
+        halt(401, "Most likely cause is encryption error")
     }
   }
 
@@ -67,8 +69,14 @@ class FlowServlet extends FlowServerStack with JacksonJsonParsing with JacksonJs
     )
   }
 
+  override def post(transformers: RouteTransformer*)(action: => Any): Route = {
+    lazy val wrapped_request = DecryptedRichRequest.wrapRequest({() => request}, {() => security})
+    lazy val wrapped_action = withRequest(wrapped_request) {action}
+    super.post(transformers:_*)(wrapped_action)
+  }
+
   /** wrapping the request to decrypt it without the servlet needing to know */
-  override implicit def enrichRequest(request: HttpServletRequest): RichRequest = new DecryptedRichRequest(request)
+//  override implicit def enrichRequest(request: HttpServletRequest): RichRequest = new DecryptedRichRequest(request)
 
   override protected def renderResponseBody(actionResult: Any): Unit = {
     super.renderResponseBody(ServletSecurity.send(actionResult))
