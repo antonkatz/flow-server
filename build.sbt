@@ -10,6 +10,7 @@ resolvers += Classpaths.typesafeReleases
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-http" % "10.0.3",
+  "com.typesafe.akka" %% "akka-http-spray-json" % "10.0.3",
   "io.spray" %%  "spray-json" % "1.3.3",
   "ch.qos.logback" % "logback-classic" % "1.1.5" % "runtime",
 

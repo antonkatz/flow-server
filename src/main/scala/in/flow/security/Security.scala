@@ -3,7 +3,7 @@ package in.flow.security
 import java.security.PublicKey
 import javax.crypto.SecretKey
 
-import in.flow.users.{BasicUserAccount, UserAccount}
+import in.flow.users.{BasicUserAccount, UserAccount, Users}
 import org.bouncycastle.util.encoders.Hex
 
 import scala.concurrent.Future
@@ -15,15 +15,14 @@ import scala.util.control.Exception._
   * It takes on the responsibility of converting different formats such as base64 and hex and plain bytes, to suit the
   * needs of different libraries on the clients side
   */
-class Security(private val user: Option[BasicUserAccount], private val decryption_iv: Option[Array[Byte]]) {
+class Security(private var user: Option[BasicUserAccount], private val decryption_iv: Option[Array[Byte]]) {
   private lazy val symmetric_key: SecretKey = Security.getOrGenerateKey(this)
-
-  private var encryption_iv: Option[Array[Byte]] = None
 
   /** indicates if the cipher key came from cache or was generated; if generated, user does not have a copy */
   private var symmetric_key_is_new = true
 
-  private var return_public_key: Option[PublicKey] = None
+  /** for cases where information has to be sent back, but the sender is not a registered user */
+  private var senders_public_key: Option[PublicKey] = None
 
   private var error: Option[Throwable] = None
 
@@ -72,31 +71,37 @@ object Security {
 
   def sendPayload(payload: String)(implicit s: Security): Either[Throwable, SymmetricallyEncrypted] = execute {() =>
     val res = Encryption.send(payload, s.symmetric_key)
-    /*todo. THIS IS TERRIBLE. PERHAPS THERE WILL BE A BETTER WAY THROUGH SINKS*/
-    s.encryption_iv = Some(res.iv)
     res
   }
-
-  def getEncryptionIv(implicit s: Security) = s.encryption_iv
 
   /** if the user needs a copy of the cipher, then this will return it, encrypted with the public key */
   def sendSymmetricKey(implicit s: Security): Option[Array[Byte]] = {
     execute({() => // add if new only
       if(s.symmetric_key_is_new) {
-        val key = Hex.toHexString(s.symmetric_key.getEncoded)
-        s.return_public_key map { pk => Encryption.send(key, pk) }
+        val skey = Hex.toHexString(s.symmetric_key.getEncoded)
+        getPublicKey match {
+          case Some(pk) => Some(Encryption.send(skey, pk))
+          case _ => throw new NeedAsymmetricKey
+        }
       } else None
     }).right.toOption.flatten
   }
 
   def provideError(implicit s: Security): Option[Throwable] = s.error
 
-//  def setPublicKey(key_string: String)(implicit s: Security): Option[Throwable] = {
-//    execute[Unit] {() =>
-//      s.return_public_key = Encryption.parsePublicKey(key_string)
-//      if (s.return_public_key.isEmpty) throw new NeedAsymmetricKey
-//    }.left.toOption
-//  }
+  def setPublicKey(key_string: String)(implicit s: Security): Option[Throwable] = {
+    execute[Unit] {() =>
+      s.senders_public_key = Encryption.parsePublicKey(key_string)
+      if (s.senders_public_key.isEmpty) throw new NeedAsymmetricKey
+    }.left.toOption
+  }
+
+  def getPublicKey(implicit s: Security): Option[PublicKey] = {
+    s.senders_public_key match {
+      case None => s.user flatMap Users.getUserPublicKey
+      case o => o
+    }
+  }
 
   /** Whether this [[Security]] can encrypt symmetrically
     * DO NOT USE, FLAWED*/
