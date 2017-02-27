@@ -43,6 +43,10 @@ object Encryption {
   def send(message: String, secret_key: SecretKey): SymmetricallyEncrypted =
     SymmetricEncryption.send(getBytes(message), secret_key)
 
+  /** returns a message as bytes encrypted with a symmetrical cipher */
+  def send(message: Array[Byte], secret_key: SecretKey): SymmetricallyEncrypted =
+    SymmetricEncryption.send(message, secret_key)
+
   def parsePublicKey(key_string: String): Option[PublicKey] = {
     def checkAndGetAsPublic: PartialFunction[Object, PublicKey] = {
       case ko: SubjectPublicKeyInfo => new JcaPEMKeyConverter().getPublicKey(ko)
