@@ -26,12 +26,26 @@ class EncryptionServletSpec extends WordSpec with Matchers with ScalatestRouteTe
       "decrypt through a filter" in {
         val bodyEncrypted = Base64.getEncoder.encodeToString(Encryption.send(TestVariables.incoming_body_plain,
           Encryption.getServerPublicKey))
-        //        Post("/decryption").withEntity(Strict(ContentTypes.`application/json`, ByteString(bodyEncrypted))) ~> TestServlet.route ~> check {
         val hf = HttpHeader.parse("format", "base64").asInstanceOf[ParsingResult.Ok].header
 
         Post("/decryption", content = bodyEncrypted).withHeaders(hf, hpk).mapEntity(_.withContentType(ContentTypes
           .`application/json`)) ~> TestServlet.route ~> check {
           status shouldBe StatusCodes.OK
+        }
+      }
+
+      "not change the flag on error" in {
+        val bodyEncrypted = Base64.getEncoder.encodeToString(Encryption.send(TestVariables.incoming_body_plain,
+          Encryption.getServerPublicKey))
+        val hf = HttpHeader.parse("format", "base64").asInstanceOf[ParsingResult.Ok].header
+        val hiv = HttpHeader.parse("iv", "").asInstanceOf[ParsingResult.Ok].header
+
+        Post("/decryption/flag", content = bodyEncrypted).withHeaders(hf, hpk, hiv)
+          .mapEntity(_.withContentType(ContentTypes.`application/json`)) ~> TestServlet.route ~> check {
+          println(status)
+          println(responseAs[String])
+          TestVariables.trigger_flag shouldBe false
+
         }
       }
 
@@ -61,6 +75,8 @@ class EncryptionServletSpec extends WordSpec with Matchers with ScalatestRouteTe
 }
 
 object TestVariables {
+  var trigger_flag = false
+
   val incoming_body_plain = "{\"value\":\"test\"}"
   val incoming_body_json = incoming_body_plain.parseJson
   val outgoing_body_plain = "test"
@@ -72,18 +88,35 @@ private[security] object TestServlet extends DefaultJsonProtocol with SprayJsonS
   import StatusCode.int2StatusCode
   import in.flow.server.ServerDirectives._
 
-  val route = securityDirective { security =>
-    (secureRequestDirective(security) & secureResponseDirective(security)) {
+  val route = securityDirective { implicit security =>
+    implicit val s = security
+
+    (secureRequestDirective(security) & secureResponseDirective(security) & securityRejectionHandler(security)) {
       post {
-        path("decryption") {
-          entity(as[JsValue]) { body =>
-            if (body == TestVariables.incoming_body_json)
-              complete(int2StatusCode(200))
-            else complete(int2StatusCode(400))
-          }
-        } ~ path("encryption") {
-          complete(TestVariables.outgoing_body_plain)
-        }
+            pathPrefix("decryption") {
+              println("/decryption")
+
+              path("flag") {
+                println("/decryption/flag")
+
+                sentity(as[String], s) { _ =>
+                  println("changing flag")
+                  TestVariables.trigger_flag = !TestVariables.trigger_flag
+                  complete(StatusCodes.OK)
+                }
+              } ~ pathEndOrSingleSlash {
+                println("/decryption [catchall]")
+                sentity(as[JsValue], s) { body =>
+                  if (body == TestVariables.incoming_body_json)
+                    complete(int2StatusCode(200))
+                  else complete(int2StatusCode(400))
+                }
+              }
+
+            } ~ path("encryption") {
+              complete(TestVariables.outgoing_body_plain)
+            }
+
       }
     }
   }

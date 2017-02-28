@@ -31,8 +31,9 @@ object FlowServerStack {
 
     val route = securityDirective { implicit security =>
       secureResponseDirective(security) {
-        path("hello") {
-          get {
+        path("register") {
+          post {
+
             complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Say hello to akka-http</h1>"))
           }
         }

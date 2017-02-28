@@ -1,19 +1,22 @@
 package in.flow.users.registration
 
+import com.wix.accord._
+import in.flow.users.UserAccount
+
 /**
   * Created by anton on 20/01/17.
   */
 private[users] object Registrar {
-  def valid(message: RegistrationMessage): Boolean = {
+  private def valid(message: RegistrationMessage): Boolean = {
     true
   }
 
-  def invitationCodeIsValid(code: String): Boolean = {
+  private def invitationCodeIsValid(code: String): Boolean = {
     true
   }
 
-  def register(message: RegistrationMessage): Boolean = {
-    true
+  def register(message: RegistrationMessage): Either[UserAccount, Failure] = {
+    ???
   }
 }
 
