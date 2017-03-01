@@ -1,42 +1,29 @@
 package in.flow.server
 
-import java.security.GeneralSecurityException
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.HttpHeader.ParsingResult
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.{Directive, Directive0, MissingQueryParamRejection, Rejection}
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.Flow
-import akka.util.ByteString
+import in.flow.users.registration.{Registrar, RegistrationRequest, RegistrationResponse}
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import spray.json._
+import ServerDirectives._
 import in.flow.security.Security
-import in.flow.users.Users
-import org.bouncycastle.util.encoders.Hex
 
 import scala.io.StdIn
 
-object FlowServerStack {
-
-  import ServerDirectives._
-
+object FlowServerStack extends InnerRoutes {
   def main(args: Array[String]) {
 
-    implicit val system = ActorSystem("my-system")
+    implicit val system = ActorSystem("flow-system")
     implicit val materializer = ActorMaterializer()
     // needed for the future flatMap/onComplete in the end
     implicit val executionContext = system.dispatcher
 
-
-    val route = securityDirective { implicit security =>
-      secureResponseDirective(security) {
-        path("register") {
-          post {
-
-            complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Say hello to akka-http</h1>"))
-          }
-        }
+    val route = securityDirective { implicit s =>
+      (secureRequestDirective(s) & secureResponseDirective(s) & securityRejectionHandler(s)) {
+        insecureInnerRoute(s)
       }
     }
 

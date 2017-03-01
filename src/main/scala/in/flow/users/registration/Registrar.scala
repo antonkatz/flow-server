@@ -1,13 +1,13 @@
 package in.flow.users.registration
 
 import com.wix.accord._
-import in.flow.users.UserAccount
+import in.flow.users.{UserAccount, Users}
 
 /**
   * Created by anton on 20/01/17.
   */
-private[users] object Registrar {
-  private def valid(message: RegistrationMessage): Boolean = {
+object Registrar {
+  private def valid(message: RegistrationRequest): Boolean = {
     true
   }
 
@@ -15,9 +15,23 @@ private[users] object Registrar {
     true
   }
 
-  def register(message: RegistrationMessage): Either[UserAccount, Failure] = {
-    ???
+  def register(message: RegistrationRequest): Either[Failure, UserAccount] = {
+    Right(UserAccount("test_id"))
+  }
+
+  implicit def registrationResultToResponse(res: Either[Failure, UserAccount]): RegistrationResponse = {
+    res fold (
+      fail => {
+        val v = fail.violations.headOption
+        RegistrationResponse(None, v.map(_.constraint), v.map(v => Descriptions.render(v.description)))
+      },
+      ua => RegistrationResponse(Some(ua.id))
+    )
+
   }
 }
 
-case class RegistrationMessage(invitation_code: String, name: String)
+case class RegistrationRequest(invitation_code: String, name: String)
+
+case class RegistrationResponse(id: Option[String],
+                                error_code: Option[String] = None, error_msg: Option[String] = None)

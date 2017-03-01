@@ -18,9 +18,9 @@ import org.bouncycastle.util.encoders.Hex
 
 
 /**
-  * Created by anton on 27/02/17.
+  * akka-http modified directives to suit our needs
   */
-object ServerDirectives {
+trait ServerDirectives {
   private def secureResponseFlow(implicit s: Security): Flow[ByteString, ByteString, _] = Flow.fromFunction { (old) =>
     Security.sendPayload(old.utf8String) match {
       case Left(e) => ByteString()
@@ -138,3 +138,5 @@ object ServerDirectives {
     case ParsingResult.Ok(h, _) => r.withHeaders(h)
   }
 }
+
+object ServerDirectives extends ServerDirectives
