@@ -6,6 +6,7 @@ import java.util.Base64
 import akka.http.scaladsl.model.HttpEntity.Strict
 import akka.http.scaladsl.model.HttpHeader.ParsingResult
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.`Access-Control-Expose-Headers`
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{RejectionHandler, _}
 import akka.http.scaladsl.server.directives.RouteDirectives.reject
@@ -15,18 +16,23 @@ import akka.util.ByteString
 import in.flow.security.{NeedAsymmetricKey, NeedSymmetricKey, Security}
 import in.flow.users.Users
 import org.bouncycastle.util.encoders.Hex
+import org.slf4j.LoggerFactory
 
 
 /**
   * akka-http modified directives to suit our needs
   */
 trait ServerDirectives {
+  private val logger = LoggerFactory.getLogger("Server Directives")
+
+  private val symmetric_key_header_name = "sym_key"
+
   private def secureResponseFlow(implicit s: Security): Flow[ByteString, ByteString, _] = Flow.fromFunction { (old) =>
     Security.sendPayload(old.utf8String) match {
       case Left(e) => ByteString()
       /*todo. THIS IS TERRIBLE. PERHAPS THERE WILL BE A BETTER WAY THROUGH SINKS*/
       case Right(msg) =>
-        ByteString(msg.iv) ++ ByteString(msg.message)
+        ByteString(Hex.toHexString(msg.iv ++ msg.message))
     }
   }
 
@@ -105,9 +111,11 @@ trait ServerDirectives {
   }
 
   private def addSymmetricKey(r: HttpResponse)(implicit s: Security) = {
-    Security.sendSymmetricKey collect { case key =>
-      headerPartial(r)(HttpHeader.parse("key", Hex.toHexString(key)))
-    } getOrElse r
+    {Security.sendSymmetricKey collect { case key =>
+      headerPartial(r)(HttpHeader.parse(symmetric_key_header_name, Hex.toHexString(key)))
+    } getOrElse r}
+      // for pesky browsers
+      .addHeader(`Access-Control-Expose-Headers`(symmetric_key_header_name))
   }
 
   def sentity[T](um: FromRequestUnmarshaller[T], s: Security): Directive1[T] = {
@@ -135,7 +143,7 @@ trait ServerDirectives {
     * removes some boilerplate code with adding headers
     * given a header parsing result and a response, returns the response with the header */
   def headerPartial(r: HttpResponse): PartialFunction[ParsingResult, HttpResponse] = {
-    case ParsingResult.Ok(h, _) => r.withHeaders(h)
+    case ParsingResult.Ok(h, _) => r.mapHeaders(_ :+ h)
   }
 }
 
