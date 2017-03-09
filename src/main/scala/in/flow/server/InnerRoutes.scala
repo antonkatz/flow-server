@@ -3,7 +3,6 @@ package in.flow.server
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import in.flow.security.Security
-import in.flow.server.ServerDirectives
 import in.flow.users.registration.{Registrar, RegistrationRequest, RegistrationResponse}
 import org.slf4j.LoggerFactory
 

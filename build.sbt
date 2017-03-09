@@ -20,16 +20,10 @@ libraryDependencies ++= Seq(
   "org.bouncycastle" % "bcprov-jdk15on" % "1.56",
   "org.bouncycastle" % "bcpkix-jdk15on" % "1.56",
 
+  "org.postgresql" % "postgresql" % "9.4.1212",
+  "com.typesafe.slick" %% "slick" % "3.2.0",
+  "com.typesafe.slick" %% "slick-hikaricp" % "3.2.0",
+
   "org.scalatest" %% "scalatest" % "3.0.1" % "test",
   "com.typesafe.akka" %% "akka-http-testkit" % "10.0.3" % "test"
 )
-
-//javaOptions += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005"
-
-//javaOptions in Jetty += "-agentpath:/opt/jrebel/lib/libjrebel64.so"
-
-//jrebelSettings
-//
-//jrebel.webLinks += (sourceDirectory in Compile).value / "webapp"
-//
-//jrebel.enabled := true

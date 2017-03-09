@@ -2,6 +2,8 @@ package in.flow.users
 
 import java.security.PublicKey
 
+import in.flow.db.DbSchema
+import in.flow.users.registration.Invitation
 import org.bouncycastle.jcajce.provider.digest.SHA3.DigestSHA3
 import sun.misc.BASE64Encoder
 /**
@@ -27,7 +29,7 @@ object Users {
 }
 
 trait BasicUserAccount {
-  val id: String
+  val user_id: String
 }
 
-case class UserAccount(id: String) extends BasicUserAccount
+case class UserAccount(user_id: String) extends BasicUserAccount

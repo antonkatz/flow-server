@@ -23,48 +23,44 @@ object FlowServerStack extends InnerRoutes {
     // needed for the future flatMap/onComplete in the end
     implicit val executionContext = system.dispatcher
 
-    val cors_headers = Seq(`Access-Control-Allow-Origin`.*, `Access-Control-Allow-Headers`("public_key",
-      "Content-Type"))
+    val cors_headers = Seq(`Access-Control-Allow-Origin`.*)
 
     implicit def myExceptionHandler: ExceptionHandler =
       ExceptionHandler {
         case e: Throwable =>
           logger.error("Excepitons: {}", e.getMessage)
-//          respondWithHeaders(default_headers: _*) {
+          respondWithHeaders(cors_headers: _*) {
             /* fixme this should be nicer */
             complete(StatusCodes.InternalServerError)
-//          }
+          }
       }
 
     implicit def myRejectionHandler: RejectionHandler = RejectionHandler.newBuilder()
       .handleAll(defaultRejectionBehaviour).result()
-//      .mapRejectionResponse(r => {
-//      r.copy(headers = r.headers ++ default_headers)
-//    })
+      .mapRejectionResponse(r => {
+        r.copy(headers = r.headers ++ cors_headers)
+      })
 
     def defaultRejectionBehaviour(r: scala.collection.immutable.Seq[Rejection]): Route = {
       logger.error("Rejections: {}", r.map(_.toString).mkString(";\t\n"))
       RejectionHandler.default(r) getOrElse complete((BadRequest, "Unknown error"))
     }
 
-    val route =
-//      respondWithHeaders(cors_headers: _*) {
+    val route = respondWithHeaders(cors_headers: _*) {
       (extractUri & extractMethod) { (uri, method) =>
-        logger.info("{} request @ {}", Seq(method, uri.toRelative): _*)
+        logger.debug("{} request @ {}", Seq(method, uri.toRelative): _*)
 
         // this is for pesky browsers that need access-control-origin-headers
         // making sure this is a cors request
         headerValueByName("Access-Control-Request-Method") { _ =>
           logger.debug("cors request")
-          extractRequest {r =>
-            respondWithHeaders(`Access-Control-Allow-Origin`.*) {
-              r.headers.find(_ is "Access-Control-Request-Headers".toLowerCase) match {
-                case Some(h) =>
-                  respondWithHeader(`Access-Control-Allow-Headers`(h.value())) {
+          extractRequest { r =>
+            r.headers.find(_ is "Access-Control-Request-Headers".toLowerCase) match {
+              case Some(h) =>
+                respondWithHeader(`Access-Control-Allow-Headers`(h.value())) {
                   complete(StatusCodes.OK)
                 }
-                case _ => complete(StatusCodes.ExpectationFailed)
-              }
+              case _ => complete(StatusCodes.ExpectationFailed)
             }
           }
         } ~ securityDirective { implicit s =>
@@ -74,7 +70,7 @@ object FlowServerStack extends InnerRoutes {
           }
         }
       }
-//    }
+    }
 
     val bindingFuture = Http().bindAndHandle(route, "localhost", 8080)
 
