@@ -89,6 +89,7 @@ object Security {
 
   def provideError(implicit s: Security): Option[Throwable] = s.error
 
+  /** uses a pem parser (requires the BEGIN/END directive) */
   def setPublicKey(key_string: String)(implicit s: Security): Option[Throwable] = {
     execute[Unit] {() =>
       s.senders_public_key = Encryption.parsePublicKey(key_string)
@@ -96,6 +97,7 @@ object Security {
     }.left.toOption
   }
 
+  /** @return either the stored public key of an existing user, or the temporarily held public key */
   def getPublicKey(implicit s: Security): Option[PublicKey] = {
     s.senders_public_key match {
       case None => s.user flatMap Users.getUserPublicKey

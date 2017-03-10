@@ -1,9 +1,6 @@
 package in.flow.security
 
-import java.security.Security
 import java.util.Base64
-import javax.crypto.Cipher
-import javax.crypto.spec.{IvParameterSpec, SecretKeySpec}
 
 import in.flow.utils.Hex
 import org.scalatest.WordSpec
@@ -64,13 +61,17 @@ class EncryptionSpec extends WordSpec {
         val plaintext = "test - of"
         val key_bytes = Hex.parse("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
 
-        val enc1 = Encryption.parseSymmetricKey(key_bytes).map {secret => Encryption.send(plaintext, secret)}.get
+        val enc1 = Encryption.parseSymmetricKey(key_bytes).map { secret => Encryption.send(plaintext, secret) }.get
         assert(enc1.iv.length == 16)
         assert(enc1.message.length > 0)
-        val enc2 = Encryption.parseSymmetricKey(key_bytes).map {secret => Encryption.send(plaintext, secret)}.get
-//        the results of the second run should be different from the first
-        assert {!(enc1.iv sameElements enc2.iv)}
-        assert {!(enc1.message sameElements enc2.message)}
+        val enc2 = Encryption.parseSymmetricKey(key_bytes).map { secret => Encryption.send(plaintext, secret) }.get
+        //        the results of the second run should be different from the first
+        assert {
+          !(enc1.iv sameElements enc2.iv)
+        }
+        assert {
+          !(enc1.message sameElements enc2.message)
+        }
 
         println(enc1.message.toList)
         println(enc2.message.toList)

@@ -17,8 +17,9 @@ import slick.lifted.ProvenShape
   */
 class UserAccounts(tag: Tag) extends Table[UserAccount](tag, "user_accounts") {
   def id = column[String]("id", O.PrimaryKey)
+  def displayName = column[String]("display_name")
 
-  def * : ProvenShape[UserAccount] = (id) <> (UserAccount.apply, UserAccount.unapply)
+  def * : ProvenShape[UserAccount] = (id, displayName) <> (UserAccount.tupled, UserAccount.unapply)
 }
 
 class Invitations(tag: Tag) extends Table[InvitationStored](tag, "invitations") {

@@ -15,7 +15,7 @@ import spray.json._
 /**
   * For testing encryption filters on the servlet
   */
-class EncryptionServletSpec extends WordSpec with Matchers with ScalatestRouteTest {
+class EncryptionServerSpec extends WordSpec with Matchers with ScalatestRouteTest {
 
   "Servlet" when {
     "receiving" should {
@@ -53,9 +53,9 @@ class EncryptionServletSpec extends WordSpec with Matchers with ScalatestRouteTe
           Post("/encryption").withHeaders(hpk) ~> TestServlet.route ~> check {
             status shouldBe StatusCodes.OK
 
-            val dsk = Encryption.receiveAsBytes(Hex.decode(response.getHeader("key").get().value()))
+            val dsk = Encryption.receiveAsBytes(Hex.decode(response.getHeader("sym_key").get().value()))
             val symmetric_key = Encryption.parseSymmetricKey(Hex.decode(dsk)).get
-            val (iv, body) = responseAs[ByteString].toArray.splitAt(16)
+            val (iv, body) = Hex.decode(responseAs[ByteString].toArray).splitAt(16)
             val decrypted_body = Encryption.receive(body, symmetric_key, iv)
 
             new String(decrypted_body) should equal(TestVariables.outgoing_body_plain)

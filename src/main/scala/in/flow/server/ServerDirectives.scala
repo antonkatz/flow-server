@@ -94,15 +94,15 @@ trait ServerDirectives {
       }
     }
     // adds symmetric key, and again checks for errors
-    mapResponseWithPotentialError(r, Security.provideError)
+    mapResponseWithPotentialError(r)
   }
 
-  /** always adds symmetric key if needed, and checks for errors, generating appropriate response */
-  private def mapResponseWithPotentialError(_r: HttpResponse, error: Option[Throwable])(implicit s: Security) = {
+  /** always adds symmetric key if needed, and checks for errors (through security), generating appropriate response */
+  private def mapResponseWithPotentialError(_r: HttpResponse)(implicit s: Security) = {
     var r = _r
     r = addSymmetricKey(r)
 
-    error match {
+    Security.provideError match {
       case Some(e) =>
         val (ermsg, code) = generateErrorResponse(e)
         r.copy(status = code, entity = Strict(ContentTypes.`text/plain(UTF-8)`, ByteString(ermsg)))
@@ -131,7 +131,7 @@ trait ServerDirectives {
 
   def securityRejectionHandler(implicit s: Security): Directive0 = {
     val handler = RejectionHandler.newBuilder().handle {
-      case SecurityRejection(er) => complete(mapResponseWithPotentialError(HttpResponse(), Some(er)))
+      case SecurityRejection(_) => complete(mapResponseWithPotentialError(HttpResponse()))
     }.result()
     handleRejections(handler)
   }

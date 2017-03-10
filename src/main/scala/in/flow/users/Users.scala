@@ -32,4 +32,4 @@ trait BasicUserAccount {
   val user_id: String
 }
 
-case class UserAccount(user_id: String) extends BasicUserAccount
+case class UserAccount(user_id: String, display_name: String) extends BasicUserAccount

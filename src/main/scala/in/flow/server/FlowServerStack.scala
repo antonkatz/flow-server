@@ -9,12 +9,13 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{ExceptionHandler, Rejection, RejectionHandler, Route}
 import akka.stream.ActorMaterializer
 import in.flow.server.ServerDirectives._
-import org.slf4j.LoggerFactory
+import _root_.in.flow.getLogger
+import scribe.Logger
 
 import scala.io.StdIn
 
 object FlowServerStack extends InnerRoutes {
-  private val logger = LoggerFactory.getLogger("SS")
+  private val logger: Logger = "ServerStack"
 
   def main(args: Array[String]) {
 
@@ -28,7 +29,7 @@ object FlowServerStack extends InnerRoutes {
     implicit def myExceptionHandler: ExceptionHandler =
       ExceptionHandler {
         case e: Throwable =>
-          logger.error("Excepitons: {}", e.getMessage)
+          logger.error(s"Exception: ${e.getMessage}")
           respondWithHeaders(cors_headers: _*) {
             /* fixme this should be nicer */
             complete(StatusCodes.InternalServerError)
@@ -42,13 +43,13 @@ object FlowServerStack extends InnerRoutes {
       })
 
     def defaultRejectionBehaviour(r: scala.collection.immutable.Seq[Rejection]): Route = {
-      logger.error("Rejections: {}", r.map(_.toString).mkString(";\t\n"))
+      logger.error(s"Rejections: ${r.map(_.toString).mkString(";\t\n")}" )
       RejectionHandler.default(r) getOrElse complete((BadRequest, "Unknown error"))
     }
 
     val route = respondWithHeaders(cors_headers: _*) {
       (extractUri & extractMethod) { (uri, method) =>
-        logger.debug("{} request @ {}", Seq(method, uri.toRelative): _*)
+        logger.debug(s"$method request @ ${uri.toRelative}")
 
         // this is for pesky browsers that need access-control-origin-headers
         // making sure this is a cors request

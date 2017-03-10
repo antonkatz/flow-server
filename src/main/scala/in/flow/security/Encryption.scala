@@ -47,6 +47,7 @@ object Encryption {
   def send(message: Array[Byte], secret_key: SecretKey): SymmetricallyEncrypted =
     SymmetricEncryption.send(message, secret_key)
 
+  /** uses a pem parser (requires the BEGIN/END directive) */
   def parsePublicKey(key_string: String): Option[PublicKey] = {
     def checkAndGetAsPublic: PartialFunction[Object, PublicKey] = {
       case ko: SubjectPublicKeyInfo => new JcaPEMKeyConverter().getPublicKey(ko)
