@@ -8,7 +8,6 @@ import com.wix.accord._
 import in.flow.db.{Db, DbSchema}
 import in.flow.users.UserAccount
 import com.wix.accord.dsl._
-import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
 import scala.concurrent.Await
@@ -27,8 +26,6 @@ import _root_.in.flow.server.FlowResponse
   * Created by anton on 20/01/17.
   */
 object Registrar {
-  type Response[T] = Either[FlowError, T]
-
   private val logger: Logger = "Registrar"
 
   /** how many words to combine to create a code */
@@ -42,7 +39,7 @@ object Registrar {
   * */
   private val ie = DatabaseError("we could not create an invitation")
 
-  def createInvitation(from: UserAccount): Response[Invitation] = {
+  def createInvitation(from: UserAccount): FlowResponseType[Invitation] = {
     createInvitationCode() match {
       case None => Left(ie)
       case Some(code_words) =>
@@ -85,7 +82,7 @@ object Registrar {
     }
   }
 
-  private[registration] def makeCode(ws: Seq[String]) = ws.mkString("-")
+  private[registration] def makeCode(ws: Seq[String]) = ws.mkString(" ")
 
   /*
   *  registering
@@ -102,7 +99,7 @@ object Registrar {
     *
     * @param public_key [[None]] results in an error
     **/
-  def register(req: RegistrationRequest, public_key: Option[PublicKey]): Response[UserAccount] = {
+  def register(req: RegistrationRequest, public_key: Option[PublicKey]): FlowResponseType[UserAccount] = {
     logger.info(s"an attempt to register is made with $req")
     public_key map { pk =>
       validate(req) match {
@@ -120,15 +117,31 @@ object Registrar {
     } getOrElse Left(MissingPublicKeyError())
   }
 
-  /** removes the invitation code, creates a new user account; expects all arguments to be "proper" (clean) */
-  private def registerUnsafe(ic: String, dn: String, public_key: PublicKey): Response[UserAccount] = {
+  def isRegistered(public_key: Option[PublicKey]): FlowResponseType[Option[UserAccount]] = public_key map { pk =>
+    getUserId(pk) map {id =>
+      allCatch[Option[UserAccount]] either {
+        val accounts = Await.result(Db.run(DbSchema.user_accounts.filter(_.id === id).result), 1 second)
+        accounts.headOption
+      } fold (e => {
+        logger.warn(s"Unexpected error during a registration check: ${e.getMessage}")
+        Left(UEr().asInstanceOf[FlowError])
+      }, s => Right(s))
+    } joinRight
+  } getOrElse Left(MissingPublicKeyError())
+
+  private def getUserId(public_key: PublicKey): FlowResponseType[String] = {
     allCatch[String].either({
       val id_byte = new DigestSHA3(256).digest(public_key.getEncoded)
       Base64.getEncoder.encodeToString(id_byte)
     }).fold(e => {
       logger.warn(s"Failed to generate id with error: ${e.getMessage}")
       Left(UEr())
-    }, id => {
+    }, id => Right(id))
+  }
+
+  /** removes the invitation code, creates a new user account; expects all arguments to be "proper" (clean) */
+  private def registerUnsafe(ic: String, dn: String, public_key: PublicKey): FlowResponseType[UserAccount] = {
+    val res = getUserId(public_key).right.map(id => {
       val u = UserAccount(id, dn)
       allCatch.either({
         // store user, and delete invitation code
@@ -147,6 +160,8 @@ object Registrar {
         Right(u)
       })
     })
+
+    res.joinRight
   }
 
   private def invitationCodeIsValid(code: String): Option[Boolean] = checkCodeExists(code)
@@ -159,7 +174,7 @@ object Registrar {
 
 case class RegistrationRequest(invitation_code: String, display_name: String)
 
-case class RegistrationResponse(id: Option[String])
+case class RegistrationResponse(id: String)
 
 case class Invitation(from: UserAccount, code_words: Seq[String]) {
   def code = Registrar.makeCode(code_words)

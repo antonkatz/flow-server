@@ -16,14 +16,13 @@ import akka.util.ByteString
 import in.flow.security.{NeedAsymmetricKey, NeedSymmetricKey, Security}
 import in.flow.users.Users
 import org.bouncycastle.util.encoders.Hex
-import org.slf4j.LoggerFactory
-
+import scribe._
 
 /**
   * akka-http modified directives to suit our needs
   */
 trait ServerDirectives {
-  private val logger = LoggerFactory.getLogger("Server Directives")
+  private val logger = "Server Directives".logger
 
   private val symmetric_key_header_name = "sym_key"
 

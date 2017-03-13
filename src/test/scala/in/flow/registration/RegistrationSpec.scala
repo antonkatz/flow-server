@@ -57,5 +57,12 @@ class RegistrationSpec extends WordSpec with Matchers {
         Await.result(Db.run(qdu), Duration.Inf)
       }
     }
+
+    "asked to create a code for dev purposes" should {
+      "do so" in {
+        println()
+        print(Registrar.createInvitation(u).right.get.code)
+      }
+    }
   }
 }

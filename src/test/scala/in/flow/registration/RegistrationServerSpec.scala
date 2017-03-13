@@ -27,21 +27,37 @@ class RegistrationServerSpec extends WordSpec with Matchers with ScalatestRouteT
 
   "Servlet" when {
     "during registration" should {
+      var new_u_id = ""
+
       "register a proper applicant" in {
         // required by Registrar to create an account
         Security.setPublicKey(TestVariables.public_key)
 
         val ic = Registrar.createInvitation(UserAccount("test_id", "dn")).map(_.code).right.get
         val json_str = "{\"display_name\": \"test\", \"invitation_code\": \"" + ic + "\"}"
-          val json = json_str.parseJson
+        val json = json_str.parseJson
         Post("/register", content = json) ~> TestInnerRoutes.insecureInnerRoute(mock_security) ~> check {
           val r = responseAs[JsValue]
           println(r)
 
           status should be (StatusCodes.OK)
           val uid = r.asJsObject.fields("response").asJsObject.fields("id").convertTo[String]
-          Db.run(DbSchema.user_accounts.filter(_.id === uid).delete)
+          new_u_id = uid
         }
+      }
+
+      "get positive response from /is_registered" in {
+        Post[JsValue]("/is_registered", content = None) ~> TestInnerRoutes.insecureInnerRoute(mock_security) ~> check {
+          status should be (StatusCodes.OK)
+          val uid = responseAs[JsValue].asJsObject.fields("response").asJsObject.fields("id").convertTo[String]
+          print(uid)
+
+          uid should be(new_u_id)
+        }
+      }
+
+      "cleanup" in {
+        Db.run(DbSchema.user_accounts.filter(_.id === new_u_id).delete)
       }
     }
   }
