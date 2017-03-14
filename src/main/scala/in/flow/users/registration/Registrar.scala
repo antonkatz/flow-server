@@ -1,32 +1,28 @@
 package in.flow.users.registration
 
 import java.security.PublicKey
-import java.util.Base64
 
-import in.flow.{DatabaseError, FlowError, InvalidInputError, MissingPublicKeyError, UnknownError => UEr}
+import _root_.in.flow.{DatabaseError, FlowError, InvalidInputError, MissingPublicKeyError, UnknownError => UEr, _}
 import com.wix.accord._
-import in.flow.db.{Db, DbSchema}
-import in.flow.users.UserAccount
+import in.flow.db._
+import in.flow.users.{UserAccount, Users}
 import com.wix.accord.dsl._
+import scribe._
+import slick.jdbc.PostgresProfile.api._
 
 import scala.annotation.tailrec
 import scala.concurrent.Await
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 import scala.language.{implicitConversions, postfixOps}
 import scala.util.Random
 import scala.util.control.Exception._
-import org.bouncycastle.jcajce.provider.digest.SHA3.DigestSHA3
-import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scribe._
-import _root_.in.flow._
-import _root_.in.flow.server.FlowResponse
 /**
   * Created by anton on 20/01/17.
   */
 object Registrar {
-  private val logger: Logger = "Registrar"
+  private val logger: Logger = "Registrar".logger
 
   /** how many words to combine to create a code */
   private val invitaiton_code_size = 3
@@ -117,12 +113,14 @@ object Registrar {
     } getOrElse Left(MissingPublicKeyError())
   }
 
-  def isRegistered(public_key: Option[PublicKey]): FlowResponseType[Option[UserAccount]] = public_key map { pk =>
-    getUserId(pk) map {id =>
-      allCatch[Option[UserAccount]] either {
+  def isRegistered(public_key: Option[PublicKey]): FlowResponseType[Option[String]] = public_key map { pk =>
+    getUserId(pk) map { id =>
+      allCatch[Option[String]] either {
         val accounts = Await.result(Db.run(DbSchema.user_accounts.filter(_.id === id).result), 1 second)
-        accounts.headOption
-      } fold (e => {
+        accounts.headOption map {
+          _.id
+        }
+      } fold(e => {
         logger.warn(s"Unexpected error during a registration check: ${e.getMessage}")
         Left(UEr().asInstanceOf[FlowError])
       }, s => Right(s))
@@ -130,26 +128,35 @@ object Registrar {
   } getOrElse Left(MissingPublicKeyError())
 
   private def getUserId(public_key: PublicKey): FlowResponseType[String] = {
-    allCatch[String].either({
-      val id_byte = new DigestSHA3(256).digest(public_key.getEncoded)
-      Base64.getEncoder.encodeToString(id_byte)
-    }).fold(e => {
-      logger.warn(s"Failed to generate id with error: ${e.getMessage}")
-      Left(UEr())
-    }, id => Right(id))
+    val optid: Option[String] = Users.getUserId(public_key)
+    optid.fold[Either[FlowError, String]](Left(UEr()))((id: String) => Right(id))
   }
 
-  /** removes the invitation code, creates a new user account; expects all arguments to be "proper" (clean) */
+  /** removes the invitation code, creates a new user account, connecting it to the issuer of the invitation code;
+    * expects all arguments to be "proper" (clean) */
   private def registerUnsafe(ic: String, dn: String, public_key: PublicKey): FlowResponseType[UserAccount] = {
     val res = getUserId(public_key).right.map(id => {
-      val u = UserAccount(id, dn)
+      val u = UserAccount(id, dn, public_key)
       allCatch.either({
         // store user, and delete invitation code
-        val uins: Int = Await.result(Db.run(DbSchema.user_accounts += u), 1 second)
+        val uins: Int = Await.result(Db.run(DbSchema.user_accounts += u.storable), 1 second)
         if (uins == 1) {
-          Db.run(DbSchema.invitations.filter(_.code === ic).delete).onComplete(_.recover {
-            case e => logger.error(s"Was not able to delete the invitation code: ${e.getMessage}")
-          })
+          // connecting to the issuer of the invitation code
+          val conFuture = Db.run(DbSchema.invitations.filter(_.code === ic).result) flatMap (invs =>
+            Users.connectUsers(invs.head.user_id, u.user_id))
+          conFuture onComplete {
+            _.recover {
+              case e => logger.error(s"Could not connect new user ${u.user_id}: ${e.getMessage}")
+            }
+          }
+          conFuture transformWith { _discard =>
+            Db.run(DbSchema.invitations.filter(_.code === ic).delete)
+          } onComplete {
+            _.recover {
+              case e => logger.error(s"Was not able to delete the invitation code: ${e.getMessage}")
+            }
+          }
+
           Right(u)
         } else Left(DatabaseError("we couldn't create a user account"))
       }) fold(e => {
@@ -179,7 +186,5 @@ case class RegistrationResponse(id: String)
 case class Invitation(from: UserAccount, code_words: Seq[String]) {
   def code = Registrar.makeCode(code_words)
 
-  def storable = InvitationStored(from.user_id, code)
+  def storable = InvitationStorable(from.user_id, code)
 }
-
-case class InvitationStored(user_id: String, code: String)

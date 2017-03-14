@@ -1,4 +1,4 @@
-package in.flow.registration
+package in.flow.users.registration
 
 import java.util.Base64
 
@@ -16,6 +16,7 @@ import in.flow.users.registration.Registrar
 import org.scalatest.{Matchers, WordSpec}
 import spray.json._
 import slick.jdbc.PostgresProfile.api._
+import in.flow_test._
 
 
 /**
@@ -33,7 +34,7 @@ class RegistrationServerSpec extends WordSpec with Matchers with ScalatestRouteT
         // required by Registrar to create an account
         Security.setPublicKey(TestVariables.public_key)
 
-        val ic = Registrar.createInvitation(UserAccount("test_id", "dn")).map(_.code).right.get
+        val ic = Registrar.createInvitation(UserAccount("test_id", "dn", mock_public_key)).map(_.code).right.get
         val json_str = "{\"display_name\": \"test\", \"invitation_code\": \"" + ic + "\"}"
         val json = json_str.parseJson
         Post("/register", content = json) ~> TestInnerRoutes.insecureInnerRoute(mock_security) ~> check {

@@ -3,7 +3,7 @@ package in.flow.security
 import java.security.PublicKey
 import javax.crypto.SecretKey
 
-import in.flow.users.{BasicUserAccount, UserAccount, Users}
+import in.flow.users.{UserAccount, Users}
 import org.bouncycastle.util.encoders.Hex
 
 import scala.concurrent.Future
@@ -15,7 +15,7 @@ import scala.util.control.Exception._
   * It takes on the responsibility of converting different formats such as base64 and hex and plain bytes, to suit the
   * needs of different libraries on the clients side
   */
-class Security(private var user: Option[BasicUserAccount], private val decryption_iv: Option[Array[Byte]]) {
+class Security(private var user: Option[UserAccount], private val decryption_iv: Option[Array[Byte]]) {
   private lazy val symmetric_key: SecretKey = Security.getOrGenerateKey(this)
 
   /** indicates if the cipher key came from cache or was generated; if generated, user does not have a copy */
@@ -33,7 +33,7 @@ object Security {
   /**
     * Creates a security context with user, initialization vector.
     * */
-  def apply(user: Option[BasicUserAccount], iv: Option[Array[Byte]]): Security = {
+  def apply(user: Option[UserAccount], iv: Option[Array[Byte]]): Security = {
     new Security(user, iv)
   }
 
@@ -119,9 +119,9 @@ private object SymmetricKeyCache {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  def save(user: BasicUserAccount, key: SecretKey) = ???
+  def save(user: UserAccount, key: SecretKey) = ???
 
-  def retrieve(user: BasicUserAccount): Option[SecretKey] = None
+  def retrieve(user: UserAccount): Option[SecretKey] = None
 
   def clearOld() = Future {
     ???

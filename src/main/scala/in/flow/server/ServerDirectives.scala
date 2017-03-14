@@ -2,6 +2,7 @@ package in.flow.server
 
 import java.security.GeneralSecurityException
 import java.util.Base64
+import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.HttpEntity.Strict
 import akka.http.scaladsl.model.HttpHeader.ParsingResult
@@ -14,9 +15,12 @@ import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
 import in.flow.security.{NeedAsymmetricKey, NeedSymmetricKey, Security}
-import in.flow.users.Users
+import in.flow.users.{UserAccount, Users}
 import org.bouncycastle.util.encoders.Hex
 import scribe._
+
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
 /**
   * akka-http modified directives to suit our needs
@@ -61,16 +65,26 @@ trait ServerDirectives {
   def securityDirective: Directive[Tuple1[Security]] = (optionalHeaderValueByName("user_id") &
     optionalHeaderValueByName("iv") & optionalHeaderValueByName("public_key")) tmap {
     case (user_id: Option[String], iv: Option[String], public_key: Option[String]) =>
-      val user = user_id flatMap Users.getUser
+
+      val user = user_id flatMap {id =>
+        Await.result(Users.getUser(id), Duration.create(2, TimeUnit.SECONDS))
+      }
+//      orElse {
+//        Security.getPublicKey flatMap { pk =>
+//          Await.result(Users.getUser(pk), Duration.create(2, TimeUnit.SECONDS))
+//        }
+//      }
       val iv_bytes = iv map Hex.decode
       implicit val s = Security(user, iv_bytes)
 
-      // setting a public key if one has been given, which should come double base64 encoded to preserve newlines
-      def b64(s: String) = new String(Base64.getDecoder.decode(s), in.flow.global_string_format)
-
       public_key map { k => Security setPublicKey b64(k) }
+
       s
   }
+
+  /** setting a public key if one has been given, which should come double base64 encoded to preserve newlines */
+  def b64(s: String) = new String(Base64.getDecoder.decode(s), in.flow.global_string_format)
+
 
   def secureRequestDirective(implicit security: Security): Directive0 = mapRequest { r =>
     val format = r.getHeader("format") match {

@@ -1,11 +1,12 @@
-package in.flow.registration
+package in.flow.users.registration
 
+import java.security.PublicKey
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.DateTime
 import in.flow.db.{Db, DbSchema}
 import in.flow.security.Encryption
-import in.flow.users.UserAccount
+import in.flow.users.{UserAccount, Users}
 import in.flow.users.registration.{Invitation, Registrar, RegistrationRequest}
 import org.scalatest.{Matchers, WordSpec}
 import scribe.formatter.{Formatter, FormatterBuilder}
@@ -25,8 +26,8 @@ import scribe._
 class RegistrationSpec extends WordSpec with Matchers {
   "Registration module" when {
 
-    val u: UserAccount = UserAccount("test_id", "desired test name")
-    val ins = Db.db.run(DbSchema.user_accounts += u)
+    val u: UserAccount = UserAccount("test_id", "desired test name", in.flow_test.mock_public_key)
+    val ins = Db.db.run(DbSchema.user_accounts += u.storable)
     Await.ready(ins, Duration.Inf)
 
     "creating an invitation code" should {
@@ -55,6 +56,15 @@ class RegistrationSpec extends WordSpec with Matchers {
         Await.result(Db.run(qi), Duration.Inf) should be(false)
         // deleting the new user, since the pub key is always the same
         Await.result(Db.run(qdu), Duration.Inf)
+      }
+
+      "create a connection between users" in {
+        val uf: UserAccount = UserAccount("from_test_id", "desired test name", in.flow_test.mock_public_key)
+        val ut: UserAccount = UserAccount("to_test_id", "desired test name", in.flow_test.mock_public_key)
+        val ins = Db.run(DBIO.seq(DbSchema.user_accounts += uf.storable, DbSchema.user_accounts += ut.storable))
+        Await.ready(ins, Duration.Inf)
+
+        Users.connectUsers("from_test_id", "to_test_id")
       }
     }
 

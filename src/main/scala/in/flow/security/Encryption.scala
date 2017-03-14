@@ -1,15 +1,21 @@
 package in.flow.security
 
 import java.io.{FileReader, StringReader}
-import java.security.{KeyPair, PublicKey}
+import java.security.spec.RSAPublicKeySpec
+import java.security.{KeyFactory, KeyFactorySpi, KeyPair, PublicKey}
 import java.util.Base64
 import javax.crypto.spec.{IvParameterSpec, SecretKeySpec}
 import javax.crypto.{Cipher, KeyGenerator, SecretKey}
 
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
+import org.bouncycastle.asn1.DERNull
+import org.bouncycastle.asn1.pkcs.{PKCSObjectIdentifiers, RSAPublicKey}
+import org.bouncycastle.asn1.x509.{AlgorithmIdentifier, SubjectPublicKeyInfo}
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openssl.jcajce.{JcaPEMKeyConverter, JcePEMDecryptorProviderBuilder}
 import org.bouncycastle.openssl.{PEMDecryptorProvider, PEMEncryptedKeyPair, PEMParser}
+import sun.security.rsa.RSAKeyFactory
+
+import scala.util.Try
 
 /**
   * All communications with the server must happen through encryption.
@@ -48,15 +54,9 @@ object Encryption {
     SymmetricEncryption.send(message, secret_key)
 
   /** uses a pem parser (requires the BEGIN/END directive) */
-  def parsePublicKey(key_string: String): Option[PublicKey] = {
-    def checkAndGetAsPublic: PartialFunction[Object, PublicKey] = {
-      case ko: SubjectPublicKeyInfo => new JcaPEMKeyConverter().getPublicKey(ko)
-    }
+  def parsePublicKey(key_string: String): Option[PublicKey] = AsymmetricEncryption.parsePublicKey(key_string)
 
-    val pem_parser = new PEMParser(new StringReader(key_string))
-    val key_object = pem_parser.readObject()
-    checkAndGetAsPublic.lift(key_object)
-  }
+  def parsePublicKey(bytes: Array[Byte]): Option[PublicKey] = AsymmetricEncryption.parsePublicKey(bytes)
 
   def generateSymmetricKey: SecretKey = {
     val generator = KeyGenerator.getInstance(EncryptionSettings.symmetric_cipher_key_type)
@@ -100,8 +100,10 @@ private object SymmetricEncryption {
 
 case class SymmetricallyEncrypted(message: Array[Byte], iv: Array[Byte])
 
+import scribe._
 
 private object AsymmetricEncryption {
+  private val logger = "AsymEncryption".logger
 
   import Encryption.getString
   import EncryptionSettings.asymmetric_cipher_type
@@ -157,6 +159,23 @@ private object AsymmetricEncryption {
     Settings(pass, key_path)
   }
 
+
+  /** uses a pem parser (requires the BEGIN/END directive) */
+  private[security] def parsePublicKey(key_string: String): Option[PublicKey] = {
+    val pem_parser = new PEMParser(new StringReader(key_string))
+    val key_object = pem_parser.readObject()
+    checkAndGetAsPublic.lift(key_object)
+  }
+
+  private[security] def parsePublicKey(bytes: Array[Byte]): Option[PublicKey] = Try {
+    val rsaPubStructure = RSAPublicKey.getInstance(bytes)
+    val spki = new SubjectPublicKeyInfo(new AlgorithmIdentifier(PKCSObjectIdentifiers.rsaEncryption, DERNull.INSTANCE),
+      rsaPubStructure)
+    checkAndGetAsPublic.lift(spki)
+  } recover {
+    case e => logger.error(s"Could not parse public key from bytes: ${e.getMessage}"); None
+  } getOrElse None
+
   /** Decrypts the key (making sure it was encrypted with a passphrase), and converts it to java format. */
   private def parseKeyPair(key_object: AnyRef, pass: String): KeyPair = {
     val decryption_provider: PEMDecryptorProvider =
@@ -170,8 +189,11 @@ private object AsymmetricEncryption {
     }
   }
 
-  private case class Settings(pass: String, private_key_path: String)
+  private def checkAndGetAsPublic: PartialFunction[Object, PublicKey] = {
+    case ko: SubjectPublicKeyInfo => new JcaPEMKeyConverter().getPublicKey(ko)
+  }
 
+  private case class Settings(pass: String, private_key_path: String)
 }
 
 private object EncryptionSettings {

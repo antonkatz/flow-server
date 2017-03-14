@@ -39,8 +39,8 @@ trait InnerRoutes extends JsonSupport {
   }
 
   implicit def userToRegResp(ua: UserAccount): Option[JsValue] = Option(regResp write RegistrationResponse(ua.user_id))
-  implicit def optUserToRegResp(ua: Option[UserAccount]): Option[JsValue] = ua map {ua =>
-    regResp write RegistrationResponse(ua.user_id)}
+  implicit def optUserIdToRegResp(uid: Option[String]): Option[JsValue] = uid map { uid =>
+    regResp write RegistrationResponse(uid)}
 
   implicit private def getStatusCode(response: FlowResponseType[_]): StatusCode = response match {
     case Right(_) => StatusCodes.OK
