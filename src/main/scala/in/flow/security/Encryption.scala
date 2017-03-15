@@ -7,7 +7,7 @@ import java.util.Base64
 import javax.crypto.spec.{IvParameterSpec, SecretKeySpec}
 import javax.crypto.{Cipher, KeyGenerator, SecretKey}
 
-import org.bouncycastle.asn1.DERNull
+import org.bouncycastle.asn1._
 import org.bouncycastle.asn1.pkcs.{PKCSObjectIdentifiers, RSAPublicKey}
 import org.bouncycastle.asn1.x509.{AlgorithmIdentifier, SubjectPublicKeyInfo}
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -168,7 +168,9 @@ private object AsymmetricEncryption {
   }
 
   private[security] def parsePublicKey(bytes: Array[Byte]): Option[PublicKey] = Try {
-    val rsaPubStructure = RSAPublicKey.getInstance(bytes)
+    val s = ASN1Sequence.getInstance(bytes)
+    val dls = s.getObjectAt(1).toASN1Primitive.asInstanceOf[DERBitString].getBytes
+    val rsaPubStructure = RSAPublicKey.getInstance(dls)
     val spki = new SubjectPublicKeyInfo(new AlgorithmIdentifier(PKCSObjectIdentifiers.rsaEncryption, DERNull.INSTANCE),
       rsaPubStructure)
     checkAndGetAsPublic.lift(spki)

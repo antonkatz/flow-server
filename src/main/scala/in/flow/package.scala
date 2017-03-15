@@ -1,6 +1,6 @@
 package in
 
-import scribe.{LogHandler, Logger}
+import scribe.{Level, LogHandler, Logger}
 import scribe.formatter.FormatterBuilder
 
 /**
@@ -15,7 +15,7 @@ package object flow {
     .positionAbbreviated.newLine
     .message.newLine
   Logger.root.clearHandlers()
-  Logger.root.addHandler(LogHandler(formatter = lf))
+  Logger.root.addHandler(LogHandler(formatter = lf, level = Level.Debug))
 
   implicit val getLogger: (String) => Logger = { (name: String) => Logger.byName(name)}
 

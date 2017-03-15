@@ -50,7 +50,7 @@ object FlowServerStack extends InnerRoutes {
 
     val route = respondWithHeaders(cors_headers: _*) {
       (extractUri & extractMethod) { (uri, method) =>
-        logger.debug(s"$method request @ ${uri.toRelative}")
+        logger.debug(s"\n$method request @ ${uri.toRelative}")
 
         // this is for pesky browsers that need access-control-origin-headers
         // making sure this is a cors request

@@ -3,13 +3,15 @@ package in.flow.server
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import in.flow.security.Security
-import in.flow.users.UserAccount
+import in.flow.users.{UserAccount, Users}
 import in.flow.users.registration.{Registrar, RegistrationRequest, RegistrationResponse}
 import in.flow.{FlowResponseType, MissingPublicKeyError, ServerError, UserError}
 import spray.json.JsValue
 import scribe._
 
+import scala.concurrent.{Future, Promise}
 import scala.language.implicitConversions
+import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
   * Done mainly to simplify testing
@@ -34,7 +36,20 @@ trait InnerRoutes extends JsonSupport {
       logger.info("checking if registered")
       val res = Registrar.isRegistered(Security.getPublicKey)
       val resp: FlowResponse = toFlowResponse(res)
-      complete(res: StatusCode, resp)
+
+      val p = Promise[Unit]()
+      val f = p.future;
+      // todo. double lookup
+      {Security.getPublicKey flatMap Users.getUserId}.fold[Any](p.success(Unit))(id => Users.lazyGetUser(id) map {u =>
+        u foreach {u => Security.setUser(u); Security.refreshSymmetricKey}
+      } onComplete {_ => p success Unit})
+
+      val fr: Future[FlowResponse] = f map {_ => resp}
+      complete(res: StatusCode, fr)
+    } ~ path("get_connections") {
+      logger.info(s"retrieving connections of user ${Security.getUserId.getOrElse("[missing id]")}")
+      val res = Seq(Set("u1"), Set("u2"))
+      complete(Future(res))
     }
   }
 

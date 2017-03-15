@@ -28,6 +28,7 @@ object Users {
   private val sha = new DigestSHA3(256)
   private val base64_encoder = new BASE64Encoder()
 
+  /** @see [[getUser(String)]]*/
   def getUser(public_key: PublicKey): Future[Option[UserAccount]] = {
     getUserId(public_key) map {id => getUser(id)} getOrElse Future(None)
   }
@@ -37,9 +38,14 @@ object Users {
     lazyGetUser(loadUserFully _)(id)
   }
 
+  /** loads the connections of the user */
   def loadUserFully(u: UserAccount): Future[UserAccount] = {
-    populateConnections(u)
+    loadUserConnections(u)
   }
+
+  def loadUserConnections(u: UserAccount): Future[UserAccount] = if(u.connectionsGiven) {
+    populateConnections(u)
+  } else Future(u)
 
   /** unlike regular get user loads only the id, display_name, and public key */
   def lazyGetUser(id: String): Future[Option[UserAccount]] = {
@@ -82,8 +88,9 @@ object Users {
     }
   }
 
-  /** extract valid connections from the futures */
-  private[users] def awaitUnloaededConnections(cons: Seq[(Future[Option[UserAccount]], UserAccountConnection)]):
+  /** extract valid connections from the futures.
+    * todo. could be implemented more efficiently */
+  private[users] def awaitUnloadedConnections(cons: Seq[(Future[Option[UserAccount]], UserAccountConnection)]):
   Seq[(UserAccount, UserAccountConnection)] = {
     cons map {c =>
       val u = Await.result(c._1, Duration.create(1, TimeUnit.SECONDS))
@@ -93,10 +100,10 @@ object Users {
     }
   }
 
-  def getUserPublicKey(user: UserAccount): Option[PublicKey] = ???
+  def getUserPublicKey(user: UserAccount): PublicKey = user.public_key
 
   /** Hashes the key to produce a (probably) unique user id */
-  private[users] def getUserId(public_key: PublicKey): Option[String] = {
+  def getUserId(public_key: PublicKey): Option[String] = {
     allCatch[String].either({
       val id_byte = new DigestSHA3(256).digest(public_key.getEncoded)
       Base64.getEncoder.encodeToString(id_byte)
@@ -123,7 +130,8 @@ object Users {
 
 case class UserAccount(user_id: String, display_name: String, public_key: PublicKey) {
   /** has the connections been loaded, or was this user lazy loaded? */
-  private var loadedConnectionsFlag = false
+  private var loaded_connections_flag = false
+  private var unloaded_connections_flag = false
 
   private var unloaded_connections: Seq[(Future[Option[UserAccount]], UserAccountConnection)] = Nil
 
@@ -132,17 +140,21 @@ case class UserAccount(user_id: String, display_name: String, public_key: Public
   private[users] def withUnloadedConnections(cons:
                                             Seq[(Future[Option[UserAccount]], UserAccountConnection)]): UserAccount = {
     unloaded_connections = cons
+    unloaded_connections_flag = true
     this
   }
 
-  def connections: Seq[(UserAccount, UserAccountConnection)] = if (loadedConnectionsFlag) {
+  def connections: Seq[(UserAccount, UserAccountConnection)] = if (loaded_connections_flag) {
     _connections
   } else {
-    _connections = Users.awaitUnloaededConnections(unloaded_connections)
+    _connections = Users.awaitUnloadedConnections(unloaded_connections)
     if (_connections.isEmpty) "UserAccount".logger.error(s"There should be at least one connection for user $user_id")
-    loadedConnectionsFlag = true
+    loaded_connections_flag = true
     _connections
   }
+
+  /** @return true if this user has been given connections; they might not be necessarily loaded. */
+  def connectionsGiven = unloaded_connections_flag
 
   implicit def storable: UserAccountStorable = UserAccountStorable(user_id, display_name, public_key.getEncoded)
 }
