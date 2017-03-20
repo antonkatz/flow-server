@@ -21,7 +21,7 @@ class Security(private var user: Option[UserAccount], private val decryption_iv:
   // make sure of that)
   private[this] var symmetric_key: Either[SecretKey, SecretKey] = null
 
-  private def initSymmetricKey = symmetric_key = Security.getOrGenerateKey(this).getOrElse(null)
+  private def initSymmetricKey() = symmetric_key = Security.getOrGenerateKey(this).getOrElse(null)
 
   private def getSymmetricKey: SecretKey = symmetric_key.fold(k => k, k => k)
 
@@ -50,8 +50,8 @@ object Security {
   /** for making sure that anything does not get executed if execution is not allowed. Executes the given function and
     * catches any exception. If an exception occurs, security context is marked as non executable */
   // todo. make it => T
-  def execute[T](f: () => T)(implicit s: Security): Either[Throwable, T] = {
-    if (s.canExecute)
+  def execute[T](f: () => T, exception_error: Option[Throwable] = None)(implicit s: Security): Either[Throwable, T] = {
+    if (s.canExecute || (provideError.isDefined && exception_error.exists(_.getClass == provideError.get.getClass) ))
       catchExceptionToSecurity(f)
     else {
       Left(s.error getOrElse new UnknownError())
@@ -100,7 +100,7 @@ object Security {
           case _ => throw new NeedAsymmetricKey
         }
       } else None
-    }).right.toOption.flatten
+    }, exception_error = Option(new MissingUser)).right.toOption.flatten
   }
 
   def provideError(implicit s: Security): Option[Throwable] = s.error
@@ -123,9 +123,19 @@ object Security {
 
   def getUserId(implicit security: Security): Option[String] = security.user.map(_.user_id)
 
+  /** if the user is not present, sets the security context as non-executable with an error */
+  def getUser(implicit s: Security): Option[UserAccount] = {
+    val u = s.user
+    if (u.isEmpty) {
+      s.canExecute = false
+      s.error = Option(new MissingUser())
+    }
+    u
+  }
+
   def setUser(user: UserAccount)(implicit s: Security): Unit = s.user = Option(user)
 
-  def refreshSymmetricKey(implicit s: Security) = {
+  def refreshSymmetricKey(implicit s: Security): Either[Throwable, Unit] = execute { () =>
     s.user foreach SymmetricKeyCache.delete
     s.initSymmetricKey
   }
@@ -178,3 +188,5 @@ private object SymmetricKeyCache {
 class NeedSymmetricKey extends Error
 
 class NeedAsymmetricKey extends Error
+
+class MissingUser extends Error

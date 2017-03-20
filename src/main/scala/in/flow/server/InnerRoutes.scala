@@ -2,10 +2,11 @@ package in.flow.server
 
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
+import in.flow.commformats.{FlowResponse, RegistrationRequest, RegistrationResponse}
 import in.flow.security.Security
-import in.flow.users.{UserAccount, Users}
-import in.flow.users.registration.{Registrar, RegistrationRequest, RegistrationResponse}
-import in.flow.{FlowResponseType, MissingPublicKeyError, ServerError, UserError}
+import in.flow.users.{Connections, UserAccount, Users}
+import in.flow.users.registration.Registrar
+import in.flow.{FlowResponseType, MissingPublicKeyError, ServerError, UnknownError, UserError}
 import spray.json.JsValue
 import scribe._
 
@@ -34,28 +35,27 @@ trait InnerRoutes extends JsonSupport {
       }
     } ~ path("is_registered") {
       logger.info("checking if registered")
-      val res = Registrar.isRegistered(Security.getPublicKey)
-      val resp: FlowResponse = toFlowResponse(res)
+//      val res = Registrar.isRegistered(Security.getPublicKey)
+//      val resp: FlowResponse = toFlowResponse(res)
+      val res: Option[RegistrationResponse] = Security.getUser map {u => RegistrationResponse(u.user_id)}
+      val resp: FlowResponse = toFlowResponse(res)(regResp.write)
+      Security.getUser foreach {_ => Security.refreshSymmetricKey}
+      complete(resp)
 
-      val p = Promise[Unit]()
-      val f = p.future;
-      // todo. double lookup
-      {Security.getPublicKey flatMap Users.getUserId}.fold[Any](p.success(Unit))(id => Users.lazyGetUser(id) map {u =>
-        u foreach {u => Security.setUser(u); Security.refreshSymmetricKey}
-      } onComplete {_ => p success Unit})
-
-      val fr: Future[FlowResponse] = f map {_ => resp}
-      complete(res: StatusCode, fr)
+      //      val p = Promise[Unit]()
+//      val f = p.future;
+//      // todo. double lookup
+//      {Security.getPublicKey flatMap Users.getUserId}.fold[Any](p.success(Unit))(id => Users.lazyGetUser(id) map {u =>
+//        u foreach {u => Security.setUser(u); Security.refreshSymmetricKey}
+//      } onComplete {_ => p success Unit})
+//      val fr: Future[FlowResponse] = f map {_ => resp}
     } ~ path("get_connections") {
       logger.info(s"retrieving connections of user ${Security.getUserId.getOrElse("[missing id]")}")
-      val res = Seq(Set("u1"), Set("u2"))
-      complete(Future(res))
+      val res: Future[Seq[Set[UserAccount]]] = Security.getUser map Connections.getVisibleConnections getOrElse
+        Future(Seq())
+      complete(connectionsToFlowResponse(res))
     }
   }
-
-  implicit def userToRegResp(ua: UserAccount): Option[JsValue] = Option(regResp write RegistrationResponse(ua.user_id))
-  implicit def optUserIdToRegResp(uid: Option[String]): Option[JsValue] = uid map { uid =>
-    regResp write RegistrationResponse(uid)}
 
   implicit private def getStatusCode(response: FlowResponseType[_]): StatusCode = response match {
     case Right(_) => StatusCodes.OK

@@ -7,6 +7,7 @@ import com.wix.accord._
 import in.flow.db._
 import in.flow.users.{UserAccount, Users}
 import com.wix.accord.dsl._
+import _root_.in.flow.commformats.RegistrationRequest
 import scribe._
 import slick.jdbc.PostgresProfile.api._
 
@@ -178,10 +179,6 @@ object Registrar {
     Left(InvalidInputError(v.map(v => Descriptions.render(v.description)).getOrElse("")))
   }
 }
-
-case class RegistrationRequest(invitation_code: String, display_name: String)
-
-case class RegistrationResponse(id: String)
 
 case class Invitation(from: UserAccount, code_words: Seq[String]) {
   def code = Registrar.makeCode(code_words)

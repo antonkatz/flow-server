@@ -43,7 +43,7 @@ object Users {
     loadUserConnections(u)
   }
 
-  def loadUserConnections(u: UserAccount): Future[UserAccount] = if(u.connectionsGiven) {
+  def loadUserConnections(u: UserAccount): Future[UserAccount] = if(!u.connectionsGiven) {
     populateConnections(u)
   } else Future(u)
 
@@ -79,7 +79,7 @@ object Users {
       // futures
       val cons_f = db_cons map {c =>
         val ctype = UserConnectionType.withName(c.connection_type)
-        val cuser = lazyGetUser(c.to_id)
+        val cuser = if (c.to_id == u.user_id) lazyGetUser(c.from_id) else lazyGetUser(c.to_id)
         cuser -> UserAccountConnection(ctype, direction_forward = c.from_id == u.user_id)
       }
       u withUnloadedConnections cons_f

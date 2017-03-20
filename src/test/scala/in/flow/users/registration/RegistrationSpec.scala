@@ -4,10 +4,11 @@ import java.security.PublicKey
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.DateTime
+import in.flow.commformats.RegistrationRequest
 import in.flow.db.{Db, DbSchema}
 import in.flow.security.Encryption
 import in.flow.users.{UserAccount, Users}
-import in.flow.users.registration.{Invitation, Registrar, RegistrationRequest}
+import in.flow.users.registration.{Invitation, Registrar}
 import org.scalatest.{Matchers, WordSpec}
 import scribe.formatter.{Formatter, FormatterBuilder}
 import slick.ast.JoinType

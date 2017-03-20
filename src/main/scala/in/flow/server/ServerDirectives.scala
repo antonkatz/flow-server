@@ -14,7 +14,7 @@ import akka.http.scaladsl.server.directives.RouteDirectives.reject
 import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
-import in.flow.security.{NeedAsymmetricKey, NeedSymmetricKey, Security}
+import in.flow.security.{MissingUser, NeedAsymmetricKey, NeedSymmetricKey, Security}
 import in.flow.users.{UserAccount, Users}
 import org.bouncycastle.util.encoders.Hex
 import scribe._
@@ -58,6 +58,8 @@ trait ServerDirectives {
       (m, StatusCodes.custom(412, reason = m))
     case _: NeedSymmetricKey => val m = "Missing symmetric key"
       (m, StatusCodes.custom(421, reason = m))
+    case _: MissingUser => val m = "Could not find user"
+      (m, StatusCodes.custom(401, reason = m))
     case _: GeneralSecurityException => ("Error during encryption or decryption of traffic. Cause unknown.", 500)
     case _ => ("Unknown error. Assuming server fault", 500)
   }
@@ -68,12 +70,12 @@ trait ServerDirectives {
 
       val user = user_id flatMap {id =>
         Await.result(Users.getUser(id), Duration.create(2, TimeUnit.SECONDS))
+      } orElse {
+        public_key flatMap {pk =>
+          Await.result(Users.getUser(pk), Duration.create(2, TimeUnit.SECONDS))
+        }
       }
-//      orElse {
-//        Security.getPublicKey flatMap { pk =>
-//          Await.result(Users.getUser(pk), Duration.create(2, TimeUnit.SECONDS))
-//        }
-//      }
+
       val iv_bytes = iv map Hex.decode
       implicit val s = Security(user, iv_bytes)
 

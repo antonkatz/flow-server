@@ -1,29 +1,27 @@
 package in.flow.users
 
-import in.flow.db.{Db, DbSchema}
+import in.flow.algorithm.AlgorithmSettings
+import in.flow.commformats.RegistrationRequest
 import in.flow.getLogger
-import in.flow.users.registration.{Registrar, RegistrationRequest}
-import org.scalatest.WordSpec
+import in.flow.users.registration.Registrar
+import org.scalatest.{Matchers, WordSpec}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
-import slick.jdbc.PostgresProfile.api._
-import scribe._
+
 /**
   * Created by anton on 14/03/17.
   */
-class ConnectionsSpec extends WordSpec {
+class ConnectionsSpec extends WordSpec with Matchers {
   private val logger = getLogger("ConSpec")
 
   "Connections module" when {
     var u: UserAccount = UserAccount("SnbEGywWGtzvGOrtGUVJGVrGL1fA7iKNo4PspuJxh+g=", "connections primordial test",
       in.flow_test.mock_public_key)
-//    val ins = Db.db.run(DbSchema.user_accounts += u.storable)
-//    Await.ready(ins, Duration.Inf)
 
     "finding connections" should {
       "find all within a set depth" in {
-        val create = true
+        val create = false
 
         if (create) {
           var last_u = u
@@ -35,10 +33,23 @@ class ConnectionsSpec extends WordSpec {
           }
         }
 
+        // todo. this test should take into account last_u as well
+        // currently the tests go from creator -> end
+        // but what about end -> creator
+
         u = Await.result[UserAccount](Users.loadUserFully(u), Duration.Inf)
 
         val cons = Await.result(Connections.getVisibleConnections(u), Duration.Inf)
         logger.info(cons.mkString("\n"))
+
+        for (i <- 0 until AlgorithmSettings.connections_search_depth) {
+          val cl = cons(i)
+          val correct_level = cl forall {
+            _.display_name.endsWith(i.toString)
+          }
+          correct_level should be(true)
+        }
+        cons should have length (AlgorithmSettings.connections_search_depth)
       }
     }
   }

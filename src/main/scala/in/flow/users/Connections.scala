@@ -21,19 +21,16 @@ object Connections {
   Seq[Set[UserAccount]] = Nil, levels_left: Int = connections_search_depth): Future[Seq[Set[UserAccount]]] = {
     val ffs = full_flat_set ++ of
 
-
     val this_level_users = Future.sequence(of map Users.loadUserConnections)
     this_level_users flatMap (tlu => {
-      val this_level = of flatMap {u =>
-
-        u.connections map {_._1}} diff ffs
+      val this_level = of flatMap {u => u.connections map {_._1}} diff ffs
 
       val ll = levels_left - 1
-      val fls = full_leveled_set :+ this_level
       if (ll > 0 && this_level.nonEmpty) {
+        val fls = full_leveled_set :+ this_level
         getVisibleConnections(this_level, ffs, fls, ll)
       } else {
-        Future(fls)
+        Future(full_leveled_set)
       }
     })
   }
