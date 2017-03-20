@@ -37,9 +37,9 @@ trait InnerRoutes extends JsonSupport {
       logger.info("checking if registered")
 //      val res = Registrar.isRegistered(Security.getPublicKey)
 //      val resp: FlowResponse = toFlowResponse(res)
-      val res: Option[RegistrationResponse] = Security.getUser map {u => RegistrationResponse(u.user_id)}
+      val res: Option[RegistrationResponse] = Security.getOrLoadUser map { u => RegistrationResponse(u.user_id)}
       val resp: FlowResponse = toFlowResponse(res)(regResp.write)
-      Security.getUser foreach {_ => Security.refreshSymmetricKey}
+      Security.getOrLoadUser foreach { _ => Security.refreshSymmetricKey}
       complete(resp)
 
       //      val p = Promise[Unit]()
@@ -51,7 +51,7 @@ trait InnerRoutes extends JsonSupport {
 //      val fr: Future[FlowResponse] = f map {_ => resp}
     } ~ path("get_connections") {
       logger.info(s"retrieving connections of user ${Security.getUserId.getOrElse("[missing id]")}")
-      val res: Future[Seq[Set[UserAccount]]] = Security.getUser map Connections.getVisibleConnections getOrElse
+      val res: Future[Seq[Set[UserAccount]]] = Security.getOrLoadUser map Connections.getVisibleConnections getOrElse
         Future(Seq())
       complete(connectionsToFlowResponse(res))
     }

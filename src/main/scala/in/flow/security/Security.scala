@@ -1,13 +1,15 @@
 package in.flow.security
 
 import java.security.PublicKey
+import java.util.concurrent.TimeUnit
 import javax.crypto.SecretKey
 
 import in.flow.users.{UserAccount, Users}
 import org.bouncycastle.util.encoders.Hex
 import scribe.Logger
 
-import scala.concurrent.Future
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 import scala.util.control.Exception._
 
 /**
@@ -60,12 +62,16 @@ object Security {
 
   private def catchExceptionToSecurity[T](function: () => T)(implicit s: Security): Either[Throwable, T] = {
     val res = allCatch either function()
-    s.error = res.left.toOption
-    if (s.error.nonEmpty) {
-      logger.error(s"Security module caught exception: ${s.error.get.getMessage}")
-      s.canExecute = false
+    res.left.toOption foreach {e =>
+      logger.error(s"Security module caught exception: ${e.getMessage}")
+      setAsNonExecutable(e)
     }
     res
+  }
+
+  private def setAsNonExecutable(error: Throwable)(implicit s: Security) = {
+    s.error = Option(error)
+    s.canExecute = false
   }
 
   /** decrypts the payload in the context of security (asymmetric vs symmetric), and in case of errors notifies the
@@ -95,7 +101,9 @@ object Security {
         val skey = Hex.toHexString(s.getSymmetricKey.getEncoded)
         getPublicKey match {
           case Some(pk) =>
+            logger.debug("Sending a new symmetric key to the client")
             s.user foreach {u => SymmetricKeyCache.save(u, s.getSymmetricKey)}
+            if (s.user isEmpty) logger.warn("There was no user to store the key in cache")
             Some(Encryption.send(skey, pk))
           case _ => throw new NeedAsymmetricKey
         }
@@ -123,12 +131,14 @@ object Security {
 
   def getUserId(implicit security: Security): Option[String] = security.user.map(_.user_id)
 
-  /** if the user is not present, sets the security context as non-executable with an error */
-  def getUser(implicit s: Security): Option[UserAccount] = {
-    val u = s.user
+  /** if the user is not present, first tries to find one using a public key
+    * if the user is not present or found, sets the security context as non-executable with an error
+    * sets user if found */
+  def getOrLoadUser(implicit s: Security): Option[UserAccount] = {
+    var u = s.user
     if (u.isEmpty) {
-      s.canExecute = false
-      s.error = Option(new MissingUser())
+      u = getPublicKey flatMap {pk => Await.result(Users.getUser(pk), Duration.create(2, TimeUnit.SECONDS))}
+      u.fold(setAsNonExecutable(new MissingUser()))(setUser)
     }
     u
   }
@@ -137,7 +147,8 @@ object Security {
 
   def refreshSymmetricKey(implicit s: Security): Either[Throwable, Unit] = execute { () =>
     s.user foreach SymmetricKeyCache.delete
-    s.initSymmetricKey
+    if (s.user.isEmpty) logger.warn("Symmetric key was not refreshed because there is no user")
+    s.initSymmetricKey()
   }
 
   /** @return [[Left]] is new, [[Right]] if retrieved from cache */

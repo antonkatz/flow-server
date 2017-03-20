@@ -70,10 +70,6 @@ trait ServerDirectives {
 
       val user = user_id flatMap {id =>
         Await.result(Users.getUser(id), Duration.create(2, TimeUnit.SECONDS))
-      } orElse {
-        public_key flatMap {pk =>
-          Await.result(Users.getUser(pk), Duration.create(2, TimeUnit.SECONDS))
-        }
       }
 
       val iv_bytes = iv map Hex.decode

@@ -26,7 +26,6 @@ import scala.util.control.Exception.allCatch
 object Users {
   private val logger = "Users".logger
   private val sha = new DigestSHA3(256)
-  private val base64_encoder = new BASE64Encoder()
 
   /** @see [[getUser(String)]]*/
   def getUser(public_key: PublicKey): Future[Option[UserAccount]] = {
@@ -105,7 +104,7 @@ object Users {
   /** Hashes the key to produce a (probably) unique user id */
   def getUserId(public_key: PublicKey): Option[String] = {
     allCatch[String].either({
-      val id_byte = new DigestSHA3(256).digest(public_key.getEncoded)
+      val id_byte = sha.digest(public_key.getEncoded)
       Base64.getEncoder.encodeToString(id_byte)
     }).fold(e => {
       logger.warn(s"Failed to generate id with error: ${e.getMessage}")
