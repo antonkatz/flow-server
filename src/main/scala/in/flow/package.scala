@@ -19,7 +19,7 @@ package object flow {
 
   implicit val getLogger: (String) => Logger = { (name: String) => Logger.byName(name)}
 
-  type FlowResponseType[T] = Either[FlowError, T]
+  type WithErrorFlow[T] = Either[FlowError, T]
 
   trait FlowError extends scala.Error {
     def isUser: Boolean = !isServer

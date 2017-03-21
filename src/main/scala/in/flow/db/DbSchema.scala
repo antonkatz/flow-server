@@ -56,3 +56,5 @@ case class UserAccountStorable(id: String, display_name: String, public_key: Arr
 case class InvitationStorable(user_id: String, code: String)
 
 case class UserAccountConnectionStorable(from_id: String, to_id: String, connection_type: String)
+
+case class OfferStorable(offer_id: String, from_user_id: String, to_user_id: String, hours: Float, description: String)

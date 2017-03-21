@@ -4,7 +4,7 @@ import java.security.PublicKey
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
-import in.flow.{FlowResponseType, UnknownError}
+import in.flow.{WithErrorFlow, UnknownError}
 import in.flow.db.{Db, DbSchema, UserAccountConnectionStorable, UserAccountStorable}
 import in.flow.security.Encryption
 import in.flow.users.UserConnectionType.UserConnectionType

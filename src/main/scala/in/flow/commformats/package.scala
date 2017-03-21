@@ -7,7 +7,7 @@ import collection.Iterable
 /**
   * Created by anton on 15/03/17.
   */
-package object commformats extends SprayJsonSupport with DefaultJsonProtocol {
+package object commformats {
 
   case class RegistrationRequest(invitation_code: String, display_name: String)
 
@@ -18,18 +18,10 @@ package object commformats extends SprayJsonSupport with DefaultJsonProtocol {
 
   case class UserRepresentation(user_id: String, display_name: String)
 
-  def failedFlowResponse(e: FlowError): FlowResponse = FlowResponse(None, Option(e.errorCode), Option(e.message))
+  /* offers */
 
-  /** The base format of every response. All communications must have this format at the root level. */
-  case class FlowResponse(
-                           var response: Option[JsValue] = None,
-                           var error_code: Option[String] = None,
-                           var error_msg: Option[String] = None
-                         ) {
-  }
+  /** for creating an offer */
+  case class OfferRequest(to_user_id: String, hours: Float, description: String)
 
-  object FlowResponse {
-    def success(response: JsValue): FlowResponse = FlowResponse(Option(response))
-  }
-
+  case class OfferResponse(offer_id: String)
 }

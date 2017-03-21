@@ -36,7 +36,7 @@ object Registrar {
   * */
   private val ie = DatabaseError("we could not create an invitation")
 
-  def createInvitation(from: UserAccount): FlowResponseType[Invitation] = {
+  def createInvitation(from: UserAccount): WithErrorFlow[Invitation] = {
     createInvitationCode() match {
       case None => Left(ie)
       case Some(code_words) =>
@@ -96,7 +96,7 @@ object Registrar {
     *
     * @param public_key [[None]] results in an error
     **/
-  def register(req: RegistrationRequest, public_key: Option[PublicKey]): FlowResponseType[UserAccount] = {
+  def register(req: RegistrationRequest, public_key: Option[PublicKey]): WithErrorFlow[UserAccount] = {
     logger.info(s"an attempt to register is made with $req")
     public_key map { pk =>
       validate(req) match {
@@ -114,7 +114,7 @@ object Registrar {
     } getOrElse Left(MissingPublicKeyError())
   }
 
-  def isRegistered(public_key: Option[PublicKey]): FlowResponseType[Option[String]] = public_key map { pk =>
+  def isRegistered(public_key: Option[PublicKey]): WithErrorFlow[Option[String]] = public_key map { pk =>
     getUserId(pk) map { id =>
       allCatch[Option[String]] either {
         val accounts = Await.result(Db.run(DbSchema.user_accounts.filter(_.id === id).result), 1 second)
@@ -128,14 +128,14 @@ object Registrar {
     } joinRight
   } getOrElse Left(MissingPublicKeyError())
 
-  private def getUserId(public_key: PublicKey): FlowResponseType[String] = {
+  private def getUserId(public_key: PublicKey): WithErrorFlow[String] = {
     val optid: Option[String] = Users.getUserId(public_key)
     optid.fold[Either[FlowError, String]](Left(UEr()))((id: String) => Right(id))
   }
 
   /** removes the invitation code, creates a new user account, connecting it to the issuer of the invitation code;
     * expects all arguments to be "proper" (clean) */
-  private def registerUnsafe(ic: String, dn: String, public_key: PublicKey): FlowResponseType[UserAccount] = {
+  private def registerUnsafe(ic: String, dn: String, public_key: PublicKey): WithErrorFlow[UserAccount] = {
     val res = getUserId(public_key).right.map(id => {
       val u = UserAccount(id, dn, public_key)
       allCatch.either({

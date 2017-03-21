@@ -6,7 +6,7 @@ import in.flow.commformats.{FlowResponse, RegistrationRequest, RegistrationRespo
 import in.flow.security.Security
 import in.flow.users.{Connections, UserAccount, Users}
 import in.flow.users.registration.Registrar
-import in.flow.{FlowResponseType, MissingPublicKeyError, ServerError, UnknownError, UserError}
+import in.flow.{WithErrorFlow, MissingPublicKeyError, ServerError, UnknownError, UserError}
 import spray.json.JsValue
 import scribe._
 
@@ -57,7 +57,7 @@ trait InnerRoutes extends JsonSupport {
     }
   }
 
-  implicit private def getStatusCode(response: FlowResponseType[_]): StatusCode = response match {
+  implicit private def getStatusCode(response: WithErrorFlow[_]): StatusCode = response match {
     case Right(_) => StatusCodes.OK
     case Left(e: ServerError) => StatusCodes.InternalServerError
     case Left(e: MissingPublicKeyError) => StatusCodes.custom(412, reason = e.message)
