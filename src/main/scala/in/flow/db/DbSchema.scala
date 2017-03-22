@@ -2,6 +2,7 @@ package in.flow.db
 
 import java.time.LocalDateTime
 
+import in.flow.db.OfferStatusType.OfferStatusType
 import in.flow.users.UserAccount
 import in.flow.users.registration.Invitation
 import slick.lifted.Shape._
@@ -55,12 +56,16 @@ class OffersTable(tag: Tag) extends Table[OfferStorable](tag, "offers") {
   def to = column[String]("to_id")
   def hours = column[Float]("hours")
   def description = column[String]("description")
-  def timestamp = column[Timestamp]("timestamp")
+  def timestamp_created = column[Timestamp]("timestamp_created")
+  /* updates */
+  def status = column[String]("status")
+  def timestamp_updated = column[Timestamp]("timestamp_updated")
 
   def userFrom = foreignKey("user_fk_from", from, DbSchema.user_accounts)(_.id)
   def userTo = foreignKey("user_fk_to", to, DbSchema.user_accounts)(_.id)
 
-  def * = (offerId, from, to, hours, description, timestamp) <> (OfferStorable.tupled, OfferStorable.unapply)
+  def * = (offerId, from, to, hours, description, timestamp_created,
+  status, timestamp_updated) <> (OfferStorable.fromDb, OfferStorable.toDb)
 }
 
 object DbSchema {
@@ -77,4 +82,23 @@ case class InvitationStorable(user_id: String, code: String)
 case class UserAccountConnectionStorable(connection_id: String, from_id: String, to_id: String, connection_type: String)
 
 case class OfferStorable(offer_id: String, from_user_id: String, to_user_id: String, hours: Float, description:
-String, timestamp: Timestamp = Timestamp.valueOf(LocalDateTime.now()))
+String, timestamp_created: Timestamp, status: OfferStatusType, timestamp_updated: Option[Timestamp]) {
+
+}
+
+object OfferStorable {
+  def fromDb(t: Tuple8[String, String, String, Float, String, Timestamp, String, Timestamp]): OfferStorable = {
+    val update_time = Option(t._8)
+    val status = OfferStatusType.withName(t._7)
+    OfferStorable(t._1, t._2, t._3, t._4, t._5, t._6, status, update_time)
+  }
+  def toDb(o: OfferStorable): Option[Tuple8[String, String, String, Float, String, Timestamp, String, Timestamp]] = {
+    Option((o.offer_id, o.from_user_id, o.to_user_id, o.hours, o.description, o.timestamp_created,
+      o.status.toString, o.timestamp_updated.orNull))
+  }
+}
+
+object OfferStatusType extends Enumeration {
+  type OfferStatusType = Value
+  val pending, completed, rejected = Value
+}

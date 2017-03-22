@@ -1,5 +1,6 @@
 package in.flow.users
 
+import java.sql.Timestamp
 import java.time.LocalDateTime
 import java.util.Base64
 
@@ -84,7 +85,7 @@ object Offers {
   private def offerRequestToStorable(r: OfferRequest, creator: UserAccount) = {
     val id = produceId(r)
     OfferStorable(id, from_user_id = creator.user_id, to_user_id = r.to_user_id, hours = r.hours,
-      r.description.getOrElse(""))
+      r.description.getOrElse(""), timestamp_created = Timestamp.valueOf(LocalDateTime.now()))
   }
 
   /** parses stored version into a response version */

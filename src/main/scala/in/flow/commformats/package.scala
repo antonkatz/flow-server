@@ -23,6 +23,8 @@ package object commformats {
   /** for creating an offer */
   case class OfferRequest(to_user_id: String, hours: Float, description: Option[String])
 
+  case class OfferActionRequest(offer_id: String)
+
   case class OfferResponse(offer_id: String, from_user_id: String, hours: Float, description: Option[String] = None)
   {
     def withDescription(description: String): OfferResponse = {
