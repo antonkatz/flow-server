@@ -2,11 +2,12 @@ package in.flow.server
 
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
-import in.flow.commformats.{FlowResponse, RegistrationRequest, RegistrationResponse}
+import in.flow.MissingUserError
+import in.flow.commformats._
 import in.flow.security.Security
-import in.flow.users.{Connections, UserAccount, Users}
+import in.flow.users.{Connections, Offers, UserAccount, Users}
 import in.flow.users.registration.Registrar
-import in.flow.{WithErrorFlow, MissingPublicKeyError, ServerError, UnknownError, UserError}
+import in.flow.{MissingPublicKeyError, ServerError, UnknownError, UserError, WithErrorFlow}
 import spray.json.JsValue
 import scribe._
 
@@ -23,9 +24,10 @@ trait InnerRoutes extends JsonSupport {
 
   protected val sd: ServerDirectives = ServerDirectives
 
+  // todo. maybe use both post and get?
   def insecureInnerRoute(implicit s: Security) = post {
     path("register") {
-      logger.info("attempting to register")
+      logger.debug("attempting to register")
       sd.sentity(as[RegistrationRequest], s) {reg_req =>
         val reg_result = Registrar.register(reg_req, Security.getPublicKey)
         val resp: FlowResponse = toFlowResponse(reg_result)
@@ -34,26 +36,42 @@ trait InnerRoutes extends JsonSupport {
         complete(status, resp)
       }
     } ~ path("is_registered") {
-      logger.info("checking if registered")
-//      val res = Registrar.isRegistered(Security.getPublicKey)
-//      val resp: FlowResponse = toFlowResponse(res)
+      logger.debug("checking if registered")
       val res: Option[RegistrationResponse] = Security.getOrLoadUser map { u => RegistrationResponse(u.user_id)}
       val resp: FlowResponse = toFlowResponse(res)(regResp.write)
       Security.getOrLoadUser foreach { _ => Security.refreshSymmetricKey}
       complete(resp)
 
-      //      val p = Promise[Unit]()
-//      val f = p.future;
-//      // todo. double lookup
-//      {Security.getPublicKey flatMap Users.getUserId}.fold[Any](p.success(Unit))(id => Users.lazyGetUser(id) map {u =>
-//        u foreach {u => Security.setUser(u); Security.refreshSymmetricKey}
-//      } onComplete {_ => p success Unit})
-//      val fr: Future[FlowResponse] = f map {_ => resp}
     } ~ path("get_connections") {
-      logger.info(s"retrieving connections of user ${Security.getUserId.getOrElse("[missing id]")}")
+      logger.debug(s"retrieving connections of user ${Security.getUserId.getOrElse("[missing id]")}")
       val res: Future[Seq[Set[UserAccount]]] = Security.getOrLoadUser map Connections.getVisibleConnections getOrElse
         Future(Seq())
       complete(connectionsToFlowResponse(res))
+
+    } ~ pathPrefix("offers") {
+      logger.debug("accessing offers")
+      path("create") {
+        logger.debug(s"${Security.getUserId.getOrElse("[missing id]")} is creating an offer")
+        sd.sentity(as[OfferRequest], s) {offer_req =>
+          val user = Security.getOrLoadUser
+          val res: Future[WithErrorFlow[OfferResponse]] = user map {u => Offers.createOffer(offer_req, u)} getOrElse {
+            Future {Left(MissingUserError())}
+          }
+          val response: Future[(StatusCode, FlowResponse)] = res map {r => getStatusCode(r) -> (r:FlowResponse)}
+          // todo. should not be status 200 with error
+          complete(response)
+        }
+      } ~ path("get") {
+//        logger.debug(s"getting offers for ${Security.getUserId.getOrElse("[missing id]")}")
+//        val user = Security.getOrLoadUser
+//        val res: Future[WithErrorFlow[OffersResponse]] = user map {u => Offers.getOffersTo(u)} getOrElse {
+//          Future {Left(MissingUserError())}
+//        }
+//        val response: Future[(StatusCode, FlowResponse)] = res map {r => getStatusCode(r) -> (r:FlowResponse)}
+//        // todo. should not be status 200 with error
+//        complete(response)
+        complete(StatusCodes.OK)
+      }
     }
   }
 

@@ -16,8 +16,13 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val regResp = jsonFormat1(RegistrationResponse)
 
   implicit def userRep = jsonFormat2(UserRepresentation)
-  //  implicit def connLevel = iterableFormat[UserRepresentation]
+
   implicit def connResp = jsonFormat(ConnectionsResponse, "friends", "fof")
+
+  implicit def offerReq = jsonFormat3(OfferRequest)
+
+  implicit val offerResp = jsonFormat4(OfferResponse)
+  implicit val offerRespWriter = offerResp.write _
 
   implicit def toFlowResponse[T](res: WithErrorFlow[T])(implicit t: (T) => Option[JsValue]): FlowResponse = {
     res fold(
@@ -25,6 +30,16 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       s => FlowResponse(t(s))
     )
   }
+
+  implicit def toFlowResponse[T](res: Future[WithErrorFlow[T]])(implicit t: (T) => JsValue):
+  Future[FlowResponse] = {
+    res map { r => toFlowResponse(r)((tojs:T) => Option(t(tojs))) }
+  }
+
+  implicit def toFlowResponseSimple[T](res: WithErrorFlow[T])(implicit t: (T) => JsValue): FlowResponse = {
+    toFlowResponse(res)(a => Option(t(a)))
+  }
+
 
   def toFlowResponse[T](what: Option[T])(implicit t: (T) => JsValue): FlowResponse = {
     FlowResponse(what map { w => t(w) })

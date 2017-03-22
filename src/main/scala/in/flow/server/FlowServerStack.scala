@@ -72,8 +72,6 @@ object FlowServerStack extends InnerRoutes {
           }
         }
       }
-    } ~ get {
-      complete("You got it!")
     }
 
     val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", 8080)

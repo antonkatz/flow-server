@@ -196,8 +196,12 @@ private object SymmetricKeyCache {
   }
 }
 
-class NeedSymmetricKey extends Error
+class NeedSymmetricKey extends Error {
+  override def getMessage = "security error: need asymmetric key"
+}
 
-class NeedAsymmetricKey extends Error
+class NeedAsymmetricKey extends Error {
+  override def getMessage = "security error: need asymmetric key"
+}
 
 class MissingUser extends Error

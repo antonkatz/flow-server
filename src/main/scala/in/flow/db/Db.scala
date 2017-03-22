@@ -22,7 +22,7 @@ object Db {
   val db: slick.jdbc.JdbcBackend.DatabaseDef = Database.forURL(getUrl + ";DB_CLOSE_DELAY=-1",
     driver = "org.postgresql.Driver")
 
-  private val schema_creation_future = db.run(DBIOAction.seq(
+  private val schema_creation_future = db.run(DBIOAction.seq(DbSchema.offers.schema.create,
     DbSchema.user_account_connections.schema.create, DbSchema.user_accounts.schema.create, DbSchema.invitations.schema
       .create)) recover {
     case e: PSQLException if e.getSQLState == "42P07" =>

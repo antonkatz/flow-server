@@ -21,7 +21,15 @@ package object commformats {
   /* offers */
 
   /** for creating an offer */
-  case class OfferRequest(to_user_id: String, hours: Float, description: String)
+  case class OfferRequest(to_user_id: String, hours: Float, description: Option[String])
 
-  case class OfferResponse(offer_id: String)
+  case class OfferResponse(offer_id: String, from_user_id: String, hours: Float, description: Option[String] = None)
+  {
+    def withDescription(description: String): OfferResponse = {
+      val d = if (description.isEmpty) None else Option(description)
+      this.copy(description = d)
+    }
+  }
+
+  case class OffersResponse(offers: Iterable[OfferResponse])
 }

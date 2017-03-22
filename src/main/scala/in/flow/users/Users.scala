@@ -22,6 +22,8 @@ import scala.util.control.Exception.allCatch
 
 /**
   * Deals with users, such as user lookup, creation, etc
+  * todo.
+  *  - maybe this object should be creating the users, not registrar
   */
 object Users {
   private val logger = "Users".logger
