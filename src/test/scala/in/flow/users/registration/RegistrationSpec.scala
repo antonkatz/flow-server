@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.DateTime
 import in.flow.commformats.RegistrationRequest
 import in.flow.db.{Db, DbSchema}
 import in.flow.security.Encryption
-import in.flow.users.{UserAccount, Users}
+import in.flow.users.{Connections, UserAccount, UserConnectionType, Users}
 import in.flow.users.registration.{Invitation, Registrar}
 import org.scalatest.{Matchers, WordSpec}
 import scribe.formatter.{Formatter, FormatterBuilder}
@@ -27,7 +27,7 @@ import scribe._
 class RegistrationSpec extends WordSpec with Matchers {
   "Registration module" when {
 
-    val u: UserAccount = UserAccount("test_id", "desired test name", in.flow_test.mock_public_key)
+    val u: UserAccount = UserAccount("primordial_creator", "desired test name", in.flow_test.mock_public_key)
     val ins = Db.db.run(DbSchema.user_accounts += u.storable)
     Await.ready(ins, Duration.Inf)
 
@@ -65,7 +65,7 @@ class RegistrationSpec extends WordSpec with Matchers {
         val ins = Db.run(DBIO.seq(DbSchema.user_accounts += uf.storable, DbSchema.user_accounts += ut.storable))
         Await.ready(ins, Duration.Inf)
 
-        Users.connectUsers("from_test_id", "to_test_id")
+        Connections.connectUsers("from_test_id", "to_test_id", UserConnectionType.friend)
       }
     }
 

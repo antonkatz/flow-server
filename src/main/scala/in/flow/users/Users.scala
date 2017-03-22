@@ -4,7 +4,7 @@ import java.security.PublicKey
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
-import in.flow.{WithErrorFlow, UnknownError}
+import in.flow.{WithErrorFlow, global_sha}
 import in.flow.db.{Db, DbSchema, UserAccountConnectionStorable, UserAccountStorable}
 import in.flow.security.Encryption
 import in.flow.users.UserConnectionType.UserConnectionType
@@ -27,7 +27,6 @@ import scala.util.control.Exception.allCatch
   */
 object Users {
   private val logger = "Users".logger
-  private val sha = new DigestSHA3(256)
 
   /** @see [[getUser(String)]]*/
   def getUser(public_key: PublicKey): Future[Option[UserAccount]] = {
@@ -53,6 +52,19 @@ object Users {
     lazyGetUser((u: UserAccount) => {
       Future.apply(u)
     })(id)
+  }
+
+  def getUserPublicKey(user: UserAccount): PublicKey = user.public_key
+
+  /** Hashes the key to produce a (probably) unique user id */
+  def getUserId(public_key: PublicKey): Option[String] = {
+    allCatch[String].either({
+      val id_byte = global_sha.digest(public_key.getEncoded)
+      Base64.getEncoder.encodeToString(id_byte)
+    }).fold(e => {
+      logger.warn(s"Failed to generate id with error: ${e.getMessage}")
+      None
+    }, id => Option(id))
   }
 
   /** unlike regular get user loads only the id, display_name, and public key */
@@ -100,33 +112,6 @@ object Users {
       case (Some(u), t) => u -> t
     }
   }
-
-  def getUserPublicKey(user: UserAccount): PublicKey = user.public_key
-
-  /** Hashes the key to produce a (probably) unique user id */
-  def getUserId(public_key: PublicKey): Option[String] = {
-    allCatch[String].either({
-      val id_byte = sha.digest(public_key.getEncoded)
-      Base64.getEncoder.encodeToString(id_byte)
-    }).fold(e => {
-      logger.warn(s"Failed to generate id with error: ${e.getMessage}")
-      None
-    }, id => Option(id))
-  }
-
-
-  /** asynchronous; NOT SAFE -- does no check that the user ids exist, does not check that the connection already exists
-    * @return a future of database access to create the connection */
-  private[users] def connectUsers(from_id: String, to_id: String,
-                           connection_type: UserConnectionType = UserConnectionType.creator): Future[_] = {
-    val con = UserAccountConnectionStorable(from_id, to_id, connection_type.toString)
-    val f = Db.run(DbSchema.user_account_connections += con)
-    f.onComplete(_.recover {
-      case e => logger.error(s"Could not store a connection between users ${from_id} and ${to_id}: " +
-        s"${e.getMessage}")
-    })
-    return f
-  }
 }
 
 case class UserAccount(user_id: String, display_name: String, public_key: PublicKey) {
@@ -163,7 +148,3 @@ case class UserAccount(user_id: String, display_name: String, public_key: Public
 /** direction forward means that the current user is the 'from' user */
 case class UserAccountConnection(ctype: UserConnectionType, direction_forward: Boolean)
 
-object UserConnectionType extends Enumeration {
-  type UserConnectionType = Value
-  val creator = Value
-}

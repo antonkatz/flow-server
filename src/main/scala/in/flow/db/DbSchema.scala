@@ -36,7 +36,9 @@ class InvitationsTable(tag: Tag) extends Table[InvitationStorable](tag, "invitat
   override def * : ProvenShape[InvitationStorable] = (userId, code) <> (InvitationStorable.tupled, InvitationStorable.unapply)
 }
 
-class UserAccountConnectionsTable(tag: Tag) extends Table[UserAccountConnectionStorable](tag, "user_account_connections") {
+class UserAccountConnectionsTable(tag: Tag) extends
+  Table[UserAccountConnectionStorable](tag, "user_account_connections") {
+  def id = column[String]("connection_id", O.PrimaryKey) // hash of from and to
   def from = column[String]("from")
   def to = column[String]("to")
   def conType = column[String]("connection_type")
@@ -44,7 +46,7 @@ class UserAccountConnectionsTable(tag: Tag) extends Table[UserAccountConnectionS
   def userFrom = foreignKey("user_fk_from", from, DbSchema.user_accounts)(_.id)
   def userTo = foreignKey("user_fk_to", to, DbSchema.user_accounts)(_.id)
 
-  def * = (from, to, conType) <> (UserAccountConnectionStorable.tupled, UserAccountConnectionStorable.unapply)
+  def * = (id, from, to, conType) <> (UserAccountConnectionStorable.tupled, UserAccountConnectionStorable.unapply)
 }
 
 class OffersTable(tag: Tag) extends Table[OfferStorable](tag, "offers") {
@@ -72,7 +74,7 @@ case class UserAccountStorable(id: String, display_name: String, public_key: Arr
 
 case class InvitationStorable(user_id: String, code: String)
 
-case class UserAccountConnectionStorable(from_id: String, to_id: String, connection_type: String)
+case class UserAccountConnectionStorable(connection_id: String, from_id: String, to_id: String, connection_type: String)
 
 case class OfferStorable(offer_id: String, from_user_id: String, to_user_id: String, hours: Float, description:
 String, timestamp: Timestamp = Timestamp.valueOf(LocalDateTime.now()))

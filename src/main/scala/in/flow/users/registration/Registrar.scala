@@ -5,7 +5,7 @@ import java.security.PublicKey
 import _root_.in.flow.{DatabaseError, FlowError, InvalidInputError, MissingPublicKeyError, UnknownError => UEr, _}
 import com.wix.accord._
 import in.flow.db._
-import in.flow.users.{UserAccount, Users}
+import in.flow.users.{Connections, UserAccount, UserConnectionType, Users}
 import com.wix.accord.dsl._
 import _root_.in.flow.commformats.RegistrationRequest
 import scribe._
@@ -144,9 +144,11 @@ object Registrar {
         if (uins == 1) {
           // connecting to the issuer of the invitation code
           val conFuture = Db.run(DbSchema.invitations.filter(_.code === ic).result) flatMap (invs =>
-            Users.connectUsers(invs.head.user_id, u.user_id))
+            Connections.connectUsers(invs.head.user_id, u.user_id, UserConnectionType.creator))
           conFuture onComplete {
-            _.recover {
+            _ collect {
+              case Left(_) => logger.error(s"Could not connect new user ${u.user_id}")
+            } recover {
               case e => logger.error(s"Could not connect new user ${u.user_id}: ${e.getMessage}")
             }
           }

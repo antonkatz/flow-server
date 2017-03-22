@@ -42,11 +42,28 @@ trait InnerRoutes extends JsonSupport {
       Security.getOrLoadUser foreach { _ => Security.refreshSymmetricKey}
       complete(resp)
 
-    } ~ path("get_connections") {
-      logger.debug(s"retrieving connections of user ${Security.getUserId.getOrElse("[missing id]")}")
-      val res: Future[Seq[Set[UserAccount]]] = Security.getOrLoadUser map Connections.getVisibleConnections getOrElse
-        Future(Seq())
-      complete(connectionsToFlowResponse(res))
+    } ~ pathPrefix("connections") {
+      path("get") {
+        logger.debug(s"retrieving connections of user ${Security.getUserId.getOrElse("[missing id]")}")
+        val res: Future[Seq[Set[UserAccount]]] = Security.getOrLoadUser map Connections.getVisibleConnections getOrElse
+          Future(Seq())
+        complete(connectionsToFlowResponse(res))
+
+      } ~ path("resolve-to-name") {
+        logger.debug(s"attempting to resolve names of connections of " +
+          s"user ${Security.getUserId.getOrElse("[missing id]")}")
+        sd.sentity(as[Seq[String]], s) {requested_ids =>
+          val user = Security.getOrLoadUser
+          val res: Future[WithErrorFlow[Seq[String]]] = user map {u =>
+            Connections.resolveIdsToNames(requested_ids, u)
+          } getOrElse {
+            Future {Left(MissingUserError())}
+          }
+          val response: Future[(StatusCode, FlowResponse)] = res map {r =>
+            getStatusCode(r) -> r}
+          complete(response)
+        }
+      }
 
     } ~ pathPrefix("offers") {
       logger.debug("accessing offers")
@@ -58,19 +75,16 @@ trait InnerRoutes extends JsonSupport {
             Future {Left(MissingUserError())}
           }
           val response: Future[(StatusCode, FlowResponse)] = res map {r => getStatusCode(r) -> (r:FlowResponse)}
-          // todo. should not be status 200 with error
           complete(response)
         }
       } ~ path("get") {
-//        logger.debug(s"getting offers for ${Security.getUserId.getOrElse("[missing id]")}")
-//        val user = Security.getOrLoadUser
-//        val res: Future[WithErrorFlow[OffersResponse]] = user map {u => Offers.getOffersTo(u)} getOrElse {
-//          Future {Left(MissingUserError())}
-//        }
-//        val response: Future[(StatusCode, FlowResponse)] = res map {r => getStatusCode(r) -> (r:FlowResponse)}
-//        // todo. should not be status 200 with error
-//        complete(response)
-        complete(StatusCodes.OK)
+        logger.debug(s"getting offers for ${Security.getUserId.getOrElse("[missing id]")}")
+        val user = Security.getOrLoadUser
+        val res: Future[WithErrorFlow[OffersResponse]] = user map {u => Offers.getOffersTo(u)} getOrElse {
+          Future {Left(MissingUserError())}
+        }
+        val response: Future[(StatusCode, FlowResponse)] = res map {r => getStatusCode(r) -> (r:FlowResponse)}
+        complete(response)
       }
     }
   }

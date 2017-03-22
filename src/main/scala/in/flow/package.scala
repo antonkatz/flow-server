@@ -1,5 +1,6 @@
 package in
 
+import org.bouncycastle.jcajce.provider.digest.SHA3.DigestSHA3
 import scribe.{Level, LogHandler, Logger}
 import scribe.formatter.FormatterBuilder
 
@@ -10,6 +11,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
   */
 package object flow {
   val global_string_format = "UTF-8"
+  val global_sha = new DigestSHA3(256)
 
   /* logger */
 

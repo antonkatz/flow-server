@@ -64,16 +64,3 @@ class RegistrationServerSpec extends WordSpec with Matchers with ScalatestRouteT
   }
 }
 
-object TestServerDirectives extends ServerDirectives {
-
-  import akka.http.scaladsl.server.Directives.entity
-
-  override def sentity[T](um: FromRequestUnmarshaller[T], s: Security): Directive1[T] = {
-    entity(um)
-  }
-}
-
-object TestInnerRoutes extends InnerRoutes {
-  override protected val sd: ServerDirectives = TestServerDirectives
-}
-

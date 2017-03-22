@@ -94,7 +94,7 @@ object Offers {
 
   /** creates an id for an offer */
   private def produceId(r: OfferRequest): String = {
-    val produce_from: String = r.to_user_id + r.description + r.hours + LocalDateTime.now().getNano
+    val produce_from: String = r.to_user_id + r.description.getOrElse("") + r.hours + LocalDateTime.now().getNano
     val id_byte = sha.digest(produce_from.getBytes)
     Base64.getEncoder.encodeToString(id_byte)
   }

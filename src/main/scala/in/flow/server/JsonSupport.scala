@@ -19,10 +19,16 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit def connResp = jsonFormat(ConnectionsResponse, "friends", "fof")
 
-  implicit def offerReq = jsonFormat3(OfferRequest)
+  /* offers */
 
+  implicit val offerReq = jsonFormat3(OfferRequest)
   implicit val offerResp = jsonFormat4(OfferResponse)
+  implicit val offersResp = jsonFormat1(OffersResponse)
   implicit val offerRespWriter = offerResp.write _
+  implicit val offersRespWriter = offersResp.write _
+
+  /* basics */
+  implicit val seqWriter = seqFormat[String].write _
 
   implicit def toFlowResponse[T](res: WithErrorFlow[T])(implicit t: (T) => Option[JsValue]): FlowResponse = {
     res fold(
