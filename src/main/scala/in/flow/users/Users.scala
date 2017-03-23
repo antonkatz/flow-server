@@ -4,10 +4,12 @@ import java.security.PublicKey
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
+import in.flow.commformats.InternalCommFormats.UserConnectionType
 import in.flow.{WithErrorFlow, global_sha}
 import in.flow.db.{Db, DbSchema, UserAccountConnectionStorable, UserAccountStorable}
 import in.flow.security.Encryption
-import in.flow.users.UserConnectionType.UserConnectionType
+import in.flow.commformats.InternalCommFormats.UserConnectionType.UserConnectionType
+import in.flow.commformats.UserAccountConnection
 import in.flow.users.registration.Invitation
 import org.bouncycastle.jcajce.provider.digest.SHA3.DigestSHA3
 import sun.misc.BASE64Encoder
@@ -113,38 +115,3 @@ object Users {
     }
   }
 }
-
-case class UserAccount(user_id: String, display_name: String, public_key: PublicKey) {
-  /** has the connections been loaded, or was this user lazy loaded? */
-  private var loaded_connections_flag = false
-  private var unloaded_connections_flag = false
-
-  private var unloaded_connections: Seq[(Future[Option[UserAccount]], UserAccountConnection)] = Nil
-
-  private var _connections:Seq[(UserAccount, UserAccountConnection)] = Nil
-
-  private[users] def withUnloadedConnections(cons:
-                                            Seq[(Future[Option[UserAccount]], UserAccountConnection)]): UserAccount = {
-    unloaded_connections = cons
-    unloaded_connections_flag = true
-    this
-  }
-
-  def connections: Seq[(UserAccount, UserAccountConnection)] = if (loaded_connections_flag) {
-    _connections
-  } else {
-    _connections = Users.awaitUnloadedConnections(unloaded_connections)
-    if (_connections.isEmpty) "UserAccount".logger.error(s"There should be at least one connection for user $user_id")
-    loaded_connections_flag = true
-    _connections
-  }
-
-  /** @return true if this user has been given connections; they might not be necessarily loaded. */
-  def connectionsGiven = unloaded_connections_flag
-
-  implicit def storable: UserAccountStorable = UserAccountStorable(user_id, display_name, public_key.getEncoded)
-}
-
-/** direction forward means that the current user is the 'from' user */
-case class UserAccountConnection(ctype: UserConnectionType, direction_forward: Boolean)
-

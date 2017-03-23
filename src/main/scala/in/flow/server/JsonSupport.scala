@@ -1,7 +1,8 @@
 package in.flow.server
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import in.flow.commformats._
+import in.flow.commformats.ExternalCommFormats.ConnectionsResponse
+import in.flow.commformats.ExternalCommFormats._
 import in.flow.users.UserAccount
 import in.flow.{FlowError, WithErrorFlow}
 import spray.json._
@@ -22,13 +23,18 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   /* offers */
 
   implicit val offerReq = jsonFormat3(OfferRequest)
-  implicit val offerResp = jsonFormat4(OfferResponse)
+  implicit val offerResp = jsonFormat5(OfferResponse)
   implicit val offersResp = jsonFormat1(OffersResponse)
   implicit val offerRespWriter = offerResp.write _
   implicit val offersRespWriter = offersResp.write _
 
+  /* wallet / transactions */
+  implicit val transactionResp = jsonFormat6(TransactionResponse)
+  implicit val offerActionReq = jsonFormat1(OfferActionRequest)
+  implicit val transactionRespWriter = transactionResp.write _
+
   /* basics */
-  implicit val seqWriter = seqFormat[String].write _
+  implicit val setOfTup2Writer = setFormat[(String,String)].write _
 
   implicit def toFlowResponse[T](res: WithErrorFlow[T])(implicit t: (T) => Option[JsValue]): FlowResponse = {
     res fold(
@@ -42,8 +48,12 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     res map { r => toFlowResponse(r)((tojs:T) => Option(t(tojs))) }
   }
 
-  implicit def toFlowResponseSimple[T](res: WithErrorFlow[T])(implicit t: (T) => JsValue): FlowResponse = {
-    toFlowResponse(res)(a => Option(t(a)))
+//  implicit def toFlowResponseSimple[T](res: WithErrorFlow[T])(implicit t: (T) => JsValue): FlowResponse = {
+//    toFlowResponse(res)(a => Option(t(a)))
+//  }
+
+  implicit def toFlowResponseSimpleWithFormatter[T](res: WithErrorFlow[T])(implicit f: JsonFormat[T]): FlowResponse = {
+    toFlowResponse(res)(a => Option(f.write(a)))
   }
 
 

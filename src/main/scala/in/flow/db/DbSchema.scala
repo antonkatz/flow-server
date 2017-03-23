@@ -54,7 +54,7 @@ class OffersTable(tag: Tag) extends Table[OfferStorable](tag, "offers") {
   def offerId = column[String]("offer_id", O.PrimaryKey)
   def from = column[String]("from_id")
   def to = column[String]("to_id")
-  def hours = column[Float]("hours")
+  def hours = column[BigDecimal]("hours")
   def description = column[String]("description")
   def timestamp_created = column[Timestamp]("timestamp_created")
   /* updates */
@@ -68,11 +68,29 @@ class OffersTable(tag: Tag) extends Table[OfferStorable](tag, "offers") {
   status, timestamp_updated) <> (OfferStorable.fromDb, OfferStorable.toDb)
 }
 
+class TransactionsTable(tag: Tag) extends Table[TransactionStorable](tag, "transactions") {
+  def transactionId = column[String]("transaction_id", O.PrimaryKey)
+  def from = column[String]("from_id")
+  def to = column[String]("to_id")
+  def amount = column[BigDecimal]("amount")
+  def timestamp = column[Timestamp]("timestamp_created")
+  def offerId = column[Option[String]]("offer_id", O.Unique)
+  def transaction_type = column[String]("type")
+
+  def userFrom = foreignKey("user_fk_from", from, DbSchema.user_accounts)(_.id)
+  def userTo = foreignKey("user_fk_to", to, DbSchema.user_accounts)(_.id)
+  def offerIdFk = foreignKey("offer_fk", offerId, DbSchema.offers)(_.offerId)
+
+  def * = (transactionId, from, to, amount, timestamp,
+    offerId, transaction_type) <> (TransactionStorable.tupled, TransactionStorable.unapply)
+}
+
 object DbSchema {
   val user_account_connections: TableQuery[UserAccountConnectionsTable] = TableQuery[UserAccountConnectionsTable]
   val user_accounts: TableQuery[UserAccountsTable] = TableQuery[UserAccountsTable]
   val invitations: TableQuery[InvitationsTable] = TableQuery[InvitationsTable]
   val offers: TableQuery[OffersTable] = TableQuery[OffersTable]
+  val transactions: TableQuery[TransactionsTable] = TableQuery[TransactionsTable]
 }
 
 case class UserAccountStorable(id: String, display_name: String, public_key: Array[Byte])
@@ -81,24 +99,32 @@ case class InvitationStorable(user_id: String, code: String)
 
 case class UserAccountConnectionStorable(connection_id: String, from_id: String, to_id: String, connection_type: String)
 
-case class OfferStorable(offer_id: String, from_user_id: String, to_user_id: String, hours: Float, description:
-String, timestamp_created: Timestamp, status: OfferStatusType, timestamp_updated: Option[Timestamp]) {
+/* offers */
+
+case class OfferStorable(offer_id: String, from_user_id: String, to_user_id: String, hours: BigDecimal, description:
+String, timestamp_created: Timestamp, status: OfferStatusType, timestamp_updated: Timestamp) {
 
 }
 
 object OfferStorable {
-  def fromDb(t: Tuple8[String, String, String, Float, String, Timestamp, String, Timestamp]): OfferStorable = {
-    val update_time = Option(t._8)
+  def fromDb(t: Tuple8[String, String, String, BigDecimal, String, Timestamp, String, Timestamp]): OfferStorable = {
+    val update_time = t._8
     val status = OfferStatusType.withName(t._7)
     OfferStorable(t._1, t._2, t._3, t._4, t._5, t._6, status, update_time)
   }
-  def toDb(o: OfferStorable): Option[Tuple8[String, String, String, Float, String, Timestamp, String, Timestamp]] = {
+  def toDb(o: OfferStorable): Option[Tuple8[String, String, String, BigDecimal, String, Timestamp, String, Timestamp]] = {
     Option((o.offer_id, o.from_user_id, o.to_user_id, o.hours, o.description, o.timestamp_created,
-      o.status.toString, o.timestamp_updated.orNull))
+      o.status.toString, o.timestamp_updated))
   }
 }
 
 object OfferStatusType extends Enumeration {
   type OfferStatusType = Value
-  val pending, completed, rejected = Value
+  val open, completed, rejected = Value
 }
+
+/* transactions / wallet */
+
+/** @param offer_id could be empty or null */
+case class TransactionStorable(transaction_id: String, from_user_id: String, to_user_id: String, amount: BigDecimal,
+timestamp: Timestamp, offer_id: Option[String], transaction_type: String)

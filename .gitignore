@@ -1,5 +1,6 @@
 encryption-keys
 settings
+*.log
 
 ## generic files to ignore
 *~

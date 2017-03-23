@@ -1,7 +1,8 @@
 package in.flow.users
 
 import in.flow.algorithm.AlgorithmSettings
-import in.flow.commformats.RegistrationRequest
+import in.flow.commformats.ExternalCommFormats.RegistrationRequest
+import in.flow.users.UserAccount
 import in.flow.getLogger
 import in.flow.users.registration.Registrar
 import org.scalatest.{Matchers, WordSpec}

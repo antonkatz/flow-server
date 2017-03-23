@@ -4,10 +4,12 @@ import java.security.PublicKey
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.DateTime
-import in.flow.commformats.RegistrationRequest
+import in._
+import in.flow.commformats.ExternalCommFormats.RegistrationRequest
+import in.flow.commformats.InternalCommFormats.UserConnectionType
 import in.flow.db.{Db, DbSchema}
 import in.flow.security.Encryption
-import in.flow.users.{Connections, UserAccount, UserConnectionType, Users}
+import in.flow.users.{Connections, UserAccount, Users}
 import in.flow.users.registration.{Invitation, Registrar}
 import org.scalatest.{Matchers, WordSpec}
 import scribe.formatter.{Formatter, FormatterBuilder}
@@ -27,7 +29,7 @@ import scribe._
 class RegistrationSpec extends WordSpec with Matchers {
   "Registration module" when {
 
-    val u: UserAccount = UserAccount("primordial_creator", "desired test name", in.flow_test.mock_public_key)
+    val u: UserAccount = UserAccount("primordial_creator", "desired test name", flow_test.mock_public_key)
     val ins = Db.db.run(DbSchema.user_accounts += u.storable)
     Await.ready(ins, Duration.Inf)
 
@@ -60,8 +62,8 @@ class RegistrationSpec extends WordSpec with Matchers {
       }
 
       "create a connection between users" in {
-        val uf: UserAccount = UserAccount("from_test_id", "desired test name", in.flow_test.mock_public_key)
-        val ut: UserAccount = UserAccount("to_test_id", "desired test name", in.flow_test.mock_public_key)
+        val uf: UserAccount = UserAccount("from_test_id", "desired test name", flow_test.mock_public_key)
+        val ut: UserAccount = UserAccount("to_test_id", "desired test name", flow_test.mock_public_key)
         val ins = Db.run(DBIO.seq(DbSchema.user_accounts += uf.storable, DbSchema.user_accounts += ut.storable))
         Await.ready(ins, Duration.Inf)
 

@@ -15,7 +15,7 @@ import akka.http.scaladsl.unmarshalling.FromRequestUnmarshaller
 import akka.stream.scaladsl.Flow
 import akka.util.ByteString
 import in.flow.security.{MissingUser, NeedAsymmetricKey, NeedSymmetricKey, Security}
-import in.flow.users.{UserAccount, Users}
+import in.flow.users.Users
 import org.bouncycastle.util.encoders.Hex
 import scribe._
 

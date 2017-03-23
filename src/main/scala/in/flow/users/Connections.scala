@@ -3,13 +3,14 @@ package in.flow.users
 import java.util.Base64
 
 import in.flow.db.{Db, DbSchema, UserAccountConnectionStorable}
-import in.flow.users.UserConnectionType.UserConnectionType
+import in.flow.commformats.InternalCommFormats.UserConnectionType.UserConnectionType
 import scribe.Logger
-import in.flow.{DatabaseError, WithErrorFlow, getLogger, global_sha, InvalidInputError}
+import in.flow.{DatabaseError, InvalidInputError, WithErrorFlow, getLogger, global_sha}
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import slick.jdbc.PostgresProfile.api._
+
 import scala.collection.{immutable => imm}
 
 /**
@@ -27,13 +28,14 @@ object Connections {
   }
 
   /**   from user connections finds all users whose ids match
-    *  @return list of dispaly names in the same order as the list of ids was given */
-  def resolveIdsToNames(ids: Seq[String], asker: UserAccount): Future[WithErrorFlow[Seq[String]]] = {
+    *  @return list of ids mapped to dispaly names in the same order as the list of ids was given */
+  def resolveIdsToNames(ids: Iterable[String], asker: UserAccount): Future[WithErrorFlow[Set[(String, String)]]] = {
     getVisibleConnectionsFlat(asker) map {cons =>
-      val names = ids map {id => cons find {_.user_id == id}} map {_ map {_.display_name}}
+      val unique_ids = ids.toSet
+      val names = unique_ids map {id => cons find {_.user_id == id}} map {_ map {u => u.user_id -> u.display_name}}
       // there should not be any that are missing
       if (names exists {_.isEmpty})
-        Left(InvalidInputError("hmm... snooping where you shouldn't, are you?")) : WithErrorFlow[Seq[String]]
+        Left(InvalidInputError("hmm... snooping where you shouldn't, are you?"))
       else
         Right(names.flatten)
     }
@@ -89,9 +91,4 @@ object Connections {
       }
     })
   }
-}
-
-object UserConnectionType extends Enumeration {
-  type UserConnectionType = Value
-  val creator, friend = Value
 }

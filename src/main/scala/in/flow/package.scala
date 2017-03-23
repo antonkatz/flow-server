@@ -1,5 +1,7 @@
 package in
 
+import java.time.{ZoneId, ZonedDateTime}
+
 import org.bouncycastle.jcajce.provider.digest.SHA3.DigestSHA3
 import scribe.{Level, LogHandler, Logger}
 import scribe.formatter.FormatterBuilder
@@ -10,8 +12,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
   * Global variables
   */
 package object flow {
+  /* variables and functions for global consistency */
+
   val global_string_format = "UTF-8"
   val global_sha = new DigestSHA3(256)
+  def getNow = {
+    ZonedDateTime.now(ZoneId.of("UTC")).toInstant
+  }
 
   /* logger */
 
@@ -28,17 +35,18 @@ package object flow {
   /* error flow */
 
   type WithErrorFlow[T] = Either[FlowError, T]
+  type FutureErrorFlow[T] = Future[WithErrorFlow[T]]
 
   implicit class FlowableFuture[T](f: Future[WithErrorFlow[T]]) {
     /** Transforms this future's (if it is successful) internal [[WithErrorFlow]] right projection with the given
       * function; propagates [[Left]] with no changes. */
-    def flowWith[O](next: (T) => Future[WithErrorFlow[O]]): Future[WithErrorFlow[O]] = f flatMap {
+    def flowWith[O](next: (T) => FutureErrorFlow[O]): FutureErrorFlow[O] = f flatMap {
       either => either.fold(e => Future(Left(e)), s => next(s))
     }
 
     /** Transforms this future's (if it is successful) internal [[WithErrorFlow]] with given function (if the
       * [[WithErrorFlow]] is [[Right]]). Propagates the [[Left]] otherwise. */
-    def flowRight[O](next: (T) => O): Future[WithErrorFlow[O]] = f map {
+    def flowRight[O](next: (T) => O): FutureErrorFlow[O] = f map {
       either => either.fold(e => Left(e), s => Right(next(s)))
     }
   }
@@ -50,6 +58,8 @@ package object flow {
     def isServer: Boolean = !isUser
     def errorCode: String
     val message: String
+
+    override def toString = s"$errorCode - $message - fault of ${if (isUser) "user" else "server"}"
   }
 
   trait ServerError extends FlowError {

@@ -23,8 +23,9 @@ object Db {
     driver = "org.postgresql.Driver")
 
   private val schema_creation_future = db.run(DBIOAction.seq(
-    DbSchema.user_account_connections.schema.create,
+    DbSchema.transactions.schema.create,
     DbSchema.offers.schema.create,
+    DbSchema.user_account_connections.schema.create,
     DbSchema.user_accounts.schema.create, DbSchema.invitations.schema
       .create)) recover {
     case e: PSQLException if e.getSQLState == "42P07" =>

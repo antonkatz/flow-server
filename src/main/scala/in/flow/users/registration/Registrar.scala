@@ -5,9 +5,10 @@ import java.security.PublicKey
 import _root_.in.flow.{DatabaseError, FlowError, InvalidInputError, MissingPublicKeyError, UnknownError => UEr, _}
 import com.wix.accord._
 import in.flow.db._
-import in.flow.users.{Connections, UserAccount, UserConnectionType, Users}
+import in.flow.users.{Connections, UserAccount, Users}
 import com.wix.accord.dsl._
-import _root_.in.flow.commformats.RegistrationRequest
+import _root_.in.flow.commformats.ExternalCommFormats._
+import _root_.in.flow.commformats.InternalCommFormats.UserConnectionType
 import scribe._
 import slick.jdbc.PostgresProfile.api._
 

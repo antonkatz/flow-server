@@ -2,18 +2,16 @@ package in.flow.server
 
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
-import in.flow.MissingUserError
-import in.flow.commformats._
+import in.flow.commformats.ExternalCommFormats._
 import in.flow.security.Security
-import in.flow.users.{Connections, Offers, UserAccount, Users}
+import in.flow.users._
 import in.flow.users.registration.Registrar
-import in.flow.{MissingPublicKeyError, ServerError, UnknownError, UserError, WithErrorFlow}
-import spray.json.JsValue
+import in.flow.{MissingPublicKeyError, MissingUserError, ServerError, UserError, WithErrorFlow, _}
 import scribe._
 
-import scala.concurrent.{Future, Promise}
-import scala.language.implicitConversions
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.language.implicitConversions
 
 /**
   * Done mainly to simplify testing
@@ -28,7 +26,7 @@ trait InnerRoutes extends JsonSupport {
   def insecureInnerRoute(implicit s: Security) = post {
     path("register") {
       logger.debug("attempting to register")
-      sd.sentity(as[RegistrationRequest], s) {reg_req =>
+      sd.sentity(as[RegistrationRequest], s) { reg_req =>
         val reg_result = Registrar.register(reg_req, Security.getPublicKey)
         val resp: FlowResponse = toFlowResponse(reg_result)
         val status: StatusCode = reg_result
@@ -37,9 +35,9 @@ trait InnerRoutes extends JsonSupport {
       }
     } ~ path("is_registered") {
       logger.debug("checking if registered")
-      val res: Option[RegistrationResponse] = Security.getOrLoadUser map { u => RegistrationResponse(u.user_id)}
+      val res: Option[RegistrationResponse] = Security.getOrLoadUser map { u => RegistrationResponse(u.user_id) }
       val resp: FlowResponse = toFlowResponse(res)(regResp.write)
-      Security.getOrLoadUser foreach { _ => Security.refreshSymmetricKey}
+      Security.getOrLoadUser foreach { _ => Security.refreshSymmetricKey }
       complete(resp)
 
     } ~ pathPrefix("connections") {
@@ -52,15 +50,18 @@ trait InnerRoutes extends JsonSupport {
       } ~ path("resolve-to-name") {
         logger.debug(s"attempting to resolve names of connections of " +
           s"user ${Security.getUserId.getOrElse("[missing id]")}")
-        sd.sentity(as[Seq[String]], s) {requested_ids =>
+        sd.sentity(as[Seq[String]], s) { requested_ids =>
           val user = Security.getOrLoadUser
-          val res: Future[WithErrorFlow[Seq[String]]] = user map {u =>
+          val res: Future[WithErrorFlow[Set[(String, String)]]] = user map { u =>
             Connections.resolveIdsToNames(requested_ids, u)
           } getOrElse {
-            Future {Left(MissingUserError())}
+            Future {
+              Left(MissingUserError())
+            }
           }
-          val response: Future[(StatusCode, FlowResponse)] = res map {r =>
-            getStatusCode(r) -> r}
+          val response: Future[(StatusCode, FlowResponse)] = res map { r =>
+            getStatusCode(r) -> r
+          }
           complete(response)
         }
       }
@@ -69,22 +70,44 @@ trait InnerRoutes extends JsonSupport {
       logger.debug("accessing offers")
       path("create") {
         logger.debug(s"${Security.getUserId.getOrElse("[missing id]")} is creating an offer")
-        sd.sentity(as[OfferRequest], s) {offer_req =>
+        sd.sentity(as[OfferRequest], s) { offer_req =>
           val user = Security.getOrLoadUser
-          val res: Future[WithErrorFlow[OfferResponse]] = user map {u => Offers.createOffer(offer_req, u)} getOrElse {
-            Future {Left(MissingUserError())}
+          val res: Future[WithErrorFlow[OfferResponse]] = user map { u => Offers.createOffer(offer_req, u) } getOrElse {
+            Future {
+              Left(MissingUserError())
+            }
           }
-          val response: Future[(StatusCode, FlowResponse)] = res map {r => getStatusCode(r) -> (r:FlowResponse)}
+          val response: Future[(StatusCode, FlowResponse)] = res map { r => getStatusCode(r) -> (r: FlowResponse) }
           complete(response)
         }
       } ~ path("get") {
         logger.debug(s"getting offers for ${Security.getUserId.getOrElse("[missing id]")}")
         val user = Security.getOrLoadUser
-        val res: Future[WithErrorFlow[OffersResponse]] = user map {u => Offers.getOffersTo(u)} getOrElse {
-          Future {Left(MissingUserError())}
+        val res: Future[WithErrorFlow[OffersResponse]] = user map { u => Offers.getPendingOffersTo(u) } getOrElse {
+          Future {
+            Left(MissingUserError())
+          }
         }
-        val response: Future[(StatusCode, FlowResponse)] = res map {r => getStatusCode(r) -> (r:FlowResponse)}
+        val response: Future[(StatusCode, FlowResponse)] = res map { r => getStatusCode(r) -> (r: FlowResponse) }
         complete(response)
+      } ~ path("complete") {
+        sd.sentity(as[OfferActionRequest], s) { req =>
+          logger.debug(s"accepting offer ${req.offer_id} for ${Security.getUserId.getOrElse("[missing id]")}")
+          val offer = Offers.retrieveOffer(req.offer_id)
+          val transaction = offer flowWith Wallet.createTransaction
+          val resp: Future[(StatusCode, FlowResponse)] = transaction map { r =>
+            getStatusCode(r) -> r
+          }
+          complete(resp)
+        }
+      } ~ path("reject") {
+        sd.sentity(as[OfferActionRequest], s) { req =>
+          logger.debug(s"rejecting offer ${req.offer_id} for ${Security.getUserId.getOrElse("[missing id]")}")
+          val resp: Future[(StatusCode, FlowResponse)] = Offers.rejectOffer(req.offer_id) map { r =>
+            getStatusCode(r) -> r
+          }
+          complete(resp)
+        }
       }
     }
   }
