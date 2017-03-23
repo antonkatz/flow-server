@@ -14,6 +14,7 @@ import scala.concurrent.Future
 import scala.language.implicitConversions
 import commformats.InternalCommFormats._
 import commformats.ExternalCommFormats._
+import in.flow.algorithm.Accounting
 import users.Wallet
 
 /**
@@ -123,6 +124,14 @@ trait InnerRoutes extends JsonSupport {
           getStatusCode(fe) -> fe
         }
         complete(response)
+      }
+    } ~ pathPrefix("algorithm") {
+      path("interest") {
+        sd.sentity(as[TimeUnitRequest], s) { time_unit =>
+          val i = Accounting.getPerTimeInterestRate(time_unit.time_unit)
+          val resp = FlowResponse.success(BigDecimalJsonFormat.write(i))
+          complete(resp)
+        }
       }
     }
   }

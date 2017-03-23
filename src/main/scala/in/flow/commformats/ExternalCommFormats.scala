@@ -70,4 +70,8 @@ object ExternalCommFormats {
     val ucb = 0:BigDecimal
     WalletResponse(cb, ucb, trs)
   }
+
+  /* algorithm */
+
+  case class TimeUnitRequest(time_unit: Int)
 }

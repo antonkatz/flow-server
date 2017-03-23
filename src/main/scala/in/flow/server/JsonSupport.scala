@@ -34,6 +34,9 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val walletResp = jsonFormat3(WalletResponse)
   implicit val transactionRespWriter = transactionResp.write _
 
+  /* algorithm */
+  implicit val timeUnitReq = jsonFormat1(TimeUnitRequest)
+
   /* basics */
   implicit val setOfTup2Writer = setFormat[(String,String)].write _
 

@@ -18,4 +18,10 @@ object Accounting {
     val balance = wallet.transactions.map(raf).sum
     wallet.copy(committed_balance = Option(balance))
   }
+
+  /** @param time_unit in seconds*/
+  def getPerTimeInterestRate(time_unit: Int): BigDecimal = {
+    val num_of_compounds = AlgorithmSettings.principle_double_in / time_unit
+    Math.pow(2, 1 / num_of_compounds)
+  }
 }
