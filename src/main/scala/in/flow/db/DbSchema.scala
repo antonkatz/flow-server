@@ -102,9 +102,7 @@ case class UserAccountConnectionStorable(connection_id: String, from_id: String,
 /* offers */
 
 case class OfferStorable(offer_id: String, from_user_id: String, to_user_id: String, hours: BigDecimal, description:
-String, timestamp_created: Timestamp, status: OfferStatusType, timestamp_updated: Timestamp) {
-
-}
+String, timestamp_created: Timestamp, status: OfferStatusType, timestamp_updated: Timestamp)
 
 object OfferStorable {
   def fromDb(t: Tuple8[String, String, String, BigDecimal, String, Timestamp, String, Timestamp]): OfferStorable = {

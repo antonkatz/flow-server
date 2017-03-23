@@ -31,6 +31,7 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   /* wallet / transactions */
   implicit val transactionResp = jsonFormat6(TransactionResponse)
   implicit val offerActionReq = jsonFormat1(OfferActionRequest)
+  implicit val walletResp = jsonFormat3(WalletResponse)
   implicit val transactionRespWriter = transactionResp.write _
 
   /* basics */

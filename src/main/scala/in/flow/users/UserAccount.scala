@@ -13,7 +13,16 @@ import scribe.Logger
   * Created by anton on 23/03/17.
   *
   */
-case class UserAccount(user_id: String, display_name: String, public_key: PublicKey) {
+trait UserAccountPointer{
+  val user_id: String
+}
+
+object UserAccountPointer {
+  def apply(id: String): UserAccountPointer = new UserAccountPointer {override val user_id = id}
+}
+
+
+case class UserAccount(user_id: String, display_name: String, public_key: PublicKey) extends UserAccountPointer {
   private val logger: Logger = "UserAccount"
   /** has the connections been loaded, or was this user lazy loaded? */
   private var loaded_connections_flag = false

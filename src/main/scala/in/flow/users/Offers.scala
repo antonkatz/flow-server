@@ -6,7 +6,7 @@ import java.util.Base64
 
 import in.flow.algorithm.AlgorithmSettings
 import in.flow.commformats.ExternalCommFormats.{OfferRequest, OfferResponse, OffersResponse}
-import in.flow.commformats.InternalCommFormats.LazyOffer
+import in.flow.commformats.InternalCommFormats.{Offer, OfferPointer}
 import in.flow.users.UserAccount
 import in.flow.db.OfferStatusType.OfferStatusType
 import in.flow.db.{Db, DbSchema, OfferStatusType, OfferStorable}
@@ -26,11 +26,11 @@ import scala.concurrent.ExecutionContext.Implicits.global
   */
 object Offers {
   private val logger: Logger = "Offers"
-  private val sha = new DigestSHA3(256)
+  private def getSha = new DigestSHA3(256)
 
-  def createOffer(request: OfferRequest, creator: UserAccount): Future[WithErrorFlow[OfferResponse]] = {
+  def createOffer(request: OfferRequest, creator: UserAccount): Future[WithErrorFlow[Offer]] = {
     Future(cleanAndValidate(request)) flowWith { r => checkPermissions(r, creator)} flowWith { r =>
-      storeOffer(r, creator) flowRight { storableToOfferResponse } recover {
+      storeOffer(r, creator) flowRight { storableToOffer } recover {
         case e => logger.error(s"Failed to create an offer: ${e.getMessage}")
           Left(UnknownError())
       }
@@ -38,26 +38,26 @@ object Offers {
   }
 
   /** returns all pending (open) offers to the given user */
-  def getPendingOffersTo(user: UserAccount): Future[WithErrorFlow[OffersResponse]] = {
-    retrieveOffers(user, OfferStatusType.open) flowRight (_ map storableToOfferResponse) flowRight OffersResponse
+  def getPendingOffersTo(user: UserAccount): Future[WithErrorFlow[Iterable[Offer]]] = {
+    retrieveOffers(user, OfferStatusType.open) flowRight (_ map storableToOffer)
   }
 
   // todo must check that the user has autority to do so
-  def retrieveOffer(offer_id: String): FutureErrorFlow[LazyOffer] = {
-    Db.run(DbSchema.offers.filter(_.offerId === offer_id).result) collect {
-      case o if o.length == 1 => Right(storableToOfferResponse(o.head))
+  def retrieveOffer(offer: OfferPointer): FutureErrorFlow[Offer] = {
+    Db.run(DbSchema.offers.filter(_.offerId === offer.offer_id).result) collect {
+      case o if o.length == 1 => Right(storableToOffer(o.head))
     } recover {
       case e => logger.error(s"Failed to retrieve an offer: ${e.getMessage}")
         Left(DatabaseError("we could not load an offer with such id"))
     }
   }
 
-  def completeOffer(offer: LazyOffer): FutureErrorFlow[LazyOffer] = {
+  def completeOffer(offer: Offer): FutureErrorFlow[Offer] = {
     changeOfferStatus(offer.offer_id, OfferStatusType.completed) flowRight(_ => offer)
   }
 
-  def rejectOffer(offer_id: String): FutureErrorFlow[String] = {
-    changeOfferStatus(offer_id, OfferStatusType.rejected)
+  def rejectOffer(offer: Offer): FutureErrorFlow[Offer] = {
+    changeOfferStatus(offer.offer_id, OfferStatusType.rejected) flowRight(_ => offer)
   }
 
   // todo must check that the user has authority to do so
@@ -130,14 +130,17 @@ object Offers {
   }
 
   /** parses stored version into a response version */
-  private def storableToOfferResponse(o: OfferStorable): OfferResponse = {
-    OfferResponse(o.offer_id, o.from_user_id, to_user_id = o.to_user_id, o.hours) withDescription o.description
+  private def storableToOffer(o: OfferStorable): Offer = {
+    val from = UserAccountPointer(o.from_user_id)
+    val to = UserAccountPointer(o.to_user_id)
+    val desc = if (o.description.nonEmpty) Option(o.description) else None
+    Offer(o.offer_id, from = from, to = to, o.hours, desc)
   }
 
   /** creates an id for an offer */
   private def produceId(r: OfferRequest): String = {
-    val produce_from: String = r.to_user_id + r.description.getOrElse("") + r.hours + LocalDateTime.now().getNano
-    val id_byte = sha.digest(produce_from.getBytes)
+    val produce_from: String = r.to_user_id + r.description.getOrElse("") + r.hours + getNow.toEpochMilli
+    val id_byte = getSha.digest(produce_from.getBytes)
     Base64.getEncoder.encodeToString(id_byte)
   }
 

@@ -12,6 +12,9 @@ import scribe._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.implicitConversions
+import commformats.InternalCommFormats._
+import commformats.ExternalCommFormats._
+import users.Wallet
 
 /**
   * Done mainly to simplify testing
@@ -72,42 +75,54 @@ trait InnerRoutes extends JsonSupport {
         logger.debug(s"${Security.getUserId.getOrElse("[missing id]")} is creating an offer")
         sd.sentity(as[OfferRequest], s) { offer_req =>
           val user = Security.getOrLoadUser
-          val res: Future[WithErrorFlow[OfferResponse]] = user map { u => Offers.createOffer(offer_req, u) } getOrElse {
+          val res: Future[WithErrorFlow[Offer]] = user map { u => Offers.createOffer(offer_req, u) } getOrElse {
             Future {
               Left(MissingUserError())
             }
           }
-          val response: Future[(StatusCode, FlowResponse)] = res map { r => getStatusCode(r) -> (r: FlowResponse) }
+          val response: Future[(StatusCode, FlowResponse)] = res map { r => getStatusCode(r) -> r.map(offerToResponse) }
           complete(response)
         }
       } ~ path("get") {
         logger.debug(s"getting offers for ${Security.getUserId.getOrElse("[missing id]")}")
         val user = Security.getOrLoadUser
-        val res: Future[WithErrorFlow[OffersResponse]] = user map { u => Offers.getPendingOffersTo(u) } getOrElse {
+        val res: Future[WithErrorFlow[Iterable[Offer]]] = user map { u => Offers.getPendingOffersTo(u) } getOrElse {
           Future {
             Left(MissingUserError())
           }
         }
-        val response: Future[(StatusCode, FlowResponse)] = res map { r => getStatusCode(r) -> (r: FlowResponse) }
+        val response: Future[(StatusCode, FlowResponse)] = res map { r => getStatusCode(r) -> r.map(offersToResponse) }
         complete(response)
       } ~ path("complete") {
         sd.sentity(as[OfferActionRequest], s) { req =>
           logger.debug(s"accepting offer ${req.offer_id} for ${Security.getUserId.getOrElse("[missing id]")}")
-          val offer = Offers.retrieveOffer(req.offer_id)
+          val offer = Offers.retrieveOffer(req)
           val transaction = offer flowWith Wallet.createTransaction
           val resp: Future[(StatusCode, FlowResponse)] = transaction map { r =>
-            getStatusCode(r) -> r
+            getStatusCode(r) -> r.map(transactionToResponse)
           }
           complete(resp)
         }
       } ~ path("reject") {
         sd.sentity(as[OfferActionRequest], s) { req =>
           logger.debug(s"rejecting offer ${req.offer_id} for ${Security.getUserId.getOrElse("[missing id]")}")
-          val resp: Future[(StatusCode, FlowResponse)] = Offers.rejectOffer(req.offer_id) map { r =>
-            getStatusCode(r) -> r
+          val offer = Offers.retrieveOffer(req)
+          val resp: Future[(StatusCode, FlowResponse)] = offer flowWith Offers.rejectOffer map { r =>
+            getStatusCode(r) -> r.map(offerToResponse)
           }
           complete(resp)
         }
+      }
+    } ~ pathPrefix("wallet") {
+      path("get") {
+        val user = Security.getOrLoadUser toRight MissingUserError()
+        val wallet = Future(user) flowWith {u => Wallet.getWallet(u)} flowRight {Wallet.loadAuxWalletInfo} flowRight {
+          walletToResponse
+        }
+        val response: Future[(StatusCode, FlowResponse)] = wallet map { fe =>
+          getStatusCode(fe) -> fe
+        }
+        complete(response)
       }
     }
   }
