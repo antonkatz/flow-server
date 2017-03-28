@@ -30,21 +30,52 @@ object Wallet {
 
   /** performs a transaction, checking that the user is allowed to do so
     * WARNING, currently does not check didly squat */
-  def createTransaction(from: UserAccount, to: UserAccount, amount: BigDecimal): TransactionResult = {
+  def performTransaction(from: UserAccount, to: UserAccount, amount: BigDecimal): TransactionResult = {
     throw new NotImplementedError("creating transaction only from offers at this moment")
   }
 
   /** performs a transaction, checking that the user is allowed to do so
     * WARNING, currently does not check didly squat */
-  def createTransaction(offer: Offer): FutureErrorFlow[OfferTransaction] = {
+  def performTransaction(offer: Offer): FutureErrorFlow[OfferTransaction] = {
     val now = getNow
     val gen_id_from = offer.from.user_id + offer.to.user_id + offer.hours.toString() + now
     val t_id_bytes = global_sha.digest(gen_id_from.getBytes(global_string_format))
     val t_id = Base64.getEncoder.encodeToString(t_id_bytes)
-    val t = OfferTransaction(t_id, from = offer.from, to = offer.to,
-      amount = offer.hours, now, offer = offer)
 
-    Offers.completeOffer(offer) flowWith {_ => store(t)}
+    val t_func = (parent_id: TransactionPointer) => {
+      OfferTransaction(t_id, parent_id, from = offer.from, to = offer.to,
+        amount = offer.hours, now, has_children = false, offer = offer)
+    }
+
+//    Offers.completeOffer(offer) flowWith {_ => store(t)}
+  }
+
+  private def performTransaction(from: UserAccountPointer, amount: BigDecimal, t_func: (TransactionPointer) =>
+    Transaction):
+  FutureErrorFlow[OfferTransaction] = {
+    getWallet(from) flowRight {wallet =>
+      // childless, sorted
+      var open_transactions = wallet.transactions.filter(t => !t.has_children && t.to == from)
+        .sortBy(_.timestamp)
+      var remaining_balance = amount
+      var new_transactions = Seq[Transaction]()
+
+      // splitting existing transactions into new transactions
+      while(remaining_balance > 0) {
+        open_transactions.headOption foreach {ot =>
+          remaining_balance -= ot.amount
+          // case did not cover all the balance
+          if (remaining_balance >= 0) {
+            new_transactions :+= t_func(ot.transaction_id)
+          }
+          // case covered more than the balance
+        }
+        // case ran out of open transactions
+
+      }
+
+    }
+    ???
   }
 
   /** @see [[Accounting.loadCommittedBalance()]]*/
@@ -82,16 +113,20 @@ object Wallet {
   /** @return instance that can be put into a database */
   private def asStorable(t: Transaction): TransactionStorable = {
     val time = Timestamp.from(t.timestamp)
-    val st = TransactionStorable(t.transaction_id, from_user_id = t.from.user_id, to_user_id = t.to.user_id,
-      amount = t.amount, timestamp = time, offer_id = None, transaction_type = t.transaction_type.toString)
+    val st = TransactionStorable(t.transaction_id, parent_id = t.parent.transaction_id, from_user_id = t.from.user_id,
+      to_user_id = t.to.user_id, amount = t.amount, timestamp = time, t.has_children,
+      offer_id = None, transaction_type = t.transaction_type.toString)
     t match {
       case t: OfferTransaction => st.copy(offer_id = Option(t.offer.offer_id))
       case _ => st
     }
   }
 
+  import in.flow.commformats.InternalCommFormats.TransactionPointer
+
   /** HOT. does not match all types of transactions */
   private def fromStorable(t: TransactionStorable): Option[Transaction] = {
+    val parent = TransactionPointer(t.parent_id)
     val from = UserAccountPointer(t.from_user_id)
     val to = UserAccountPointer(t.to_user_id)
     TransactionType.withName(t.transaction_type) match {
@@ -99,7 +134,8 @@ object Wallet {
         val offer = new OfferPointer {
           override val offer_id: String = oid
         }
-        OfferTransaction(t.transaction_id, from=from, to=to, t.amount, t.timestamp.toInstant, offer)
+        OfferTransaction(t.transaction_id, parent, from=from, to=to, t.amount, t.timestamp.toInstant,
+          t.has_children, offer)
       }
     }
   }

@@ -98,7 +98,7 @@ trait InnerRoutes extends JsonSupport {
         sd.sentity(as[OfferActionRequest], s) { req =>
           logger.debug(s"accepting offer ${req.offer_id} for ${Security.getUserId.getOrElse("[missing id]")}")
           val offer = Offers.retrieveOffer(req)
-          val transaction = offer flowWith Wallet.createTransaction
+          val transaction = offer flowWith Wallet.performTransaction
           val resp: Future[(StatusCode, FlowResponse)] = transaction map { r =>
             getStatusCode(r) -> r.map(transactionToResponse)
           }

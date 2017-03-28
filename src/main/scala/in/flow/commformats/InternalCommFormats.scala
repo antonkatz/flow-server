@@ -36,20 +36,33 @@ object InternalCommFormats {
   case class UserWallet(owner: UserAccountPointer, transactions: Seq[Transaction],
                         committed_balance: Option[BigDecimal] = None)
 
-  trait Transaction {
+  trait TransactionPointer {
     val transaction_id: String
+  }
+
+  object TransactionPointer {
+    def apply(id: String): TransactionPointer = new TransactionPointer {
+      val transaction_id = id
+    }
+  }
+
+  trait Transaction extends TransactionPointer {
+    val parent: TransactionPointer
     val from: UserAccountPointer
     val to: UserAccountPointer
     val amount: BigDecimal
     val timestamp: Instant
     val transaction_type: TransactionType
+    val has_children: Boolean
   }
 
   case class OfferTransaction(transaction_id: String,
+                              parent: TransactionPointer,
                               from: UserAccountPointer,
                               to: UserAccountPointer,
                               amount: BigDecimal,
                               timestamp: Instant,
+                              has_children: Boolean,
                               offer: OfferPointer) extends Transaction {
     override val transaction_type: TransactionType = TransactionType.offer
   }
