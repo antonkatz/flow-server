@@ -43,6 +43,11 @@ object Wallet {
     Offers.completeOffer(offer) flowWith { _ => evolveTransactions(offer.from, offer.hours, builder) }
   }
 
+  def processInterest(amount: BigDecimal): FutureErrorFlow[Transaction] = {
+//    InterestTransaction()
+    ???
+  }
+
   private def generateId(from: UserAccountPointer, to: UserAccountPointer, amount: BigDecimal) = {
     val now = getNow
     val gen_id_from = from.user_id + to.user_id + amount.toString() + now + Random.nextDouble()
@@ -92,16 +97,18 @@ object Wallet {
   }
 
   /** @return incoming transactions from wallet that do not have any children */
-  private def findOpenTransactions(wallet: UserWallet): Seq[Transaction] = {
+  def findOpenTransactions(wallet: UserWallet): Seq[Transaction] = {
     val parent_ids = wallet.transactions collect {
       case p if p.parent isDefined => p.parent.get.transaction_id
     }
     wallet.transactions filter { t => !(parent_ids contains t.transaction_id) & (t.to == wallet.owner) }
   }
 
-  /** @see [[Accounting.loadCommittedBalance()]] */
+  /** @see [[Accounting.loadPrincipal()]] [[Accounting.loadInterest()]] */
   def loadAuxWalletInfo(wallet: UserWallet): UserWallet = {
-    Accounting.loadCommittedBalance(wallet)
+    var w = Accounting.loadPrincipal(wallet)
+    w = Accounting.loadInterest(w)
+    Accounting.loadUncommitedInterest(w)
   }
 
   /** HOT. The database access can fail giving wrong balances

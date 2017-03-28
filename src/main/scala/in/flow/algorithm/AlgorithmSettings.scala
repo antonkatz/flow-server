@@ -8,5 +8,5 @@ object AlgorithmSettings {
   val transaction_amount_lower_bound: BigDecimal = 0.1
 
   /** in what time the financial principal doubles, in seconds */
-  val principle_double_in: Double = 60 * 60 * 24 * 7
+  val principle_double_in: Double = 60 * 60 * 24 * 7 * 2 // two weeks
 }

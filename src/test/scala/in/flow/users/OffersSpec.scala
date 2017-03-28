@@ -20,7 +20,8 @@ import scala.concurrent.duration.Duration
 class OffersSpec extends WordSpec with Matchers {
   private val logger: Logger = "OfferSpec"
   "Offers" when {
-    val offering_to = Await.result(Users.lazyGetUser("uGfcjvhzihkjLR8D1LiFCqbBE2DkiKfk6vhRGafXZk0="), Duration.Inf).get
+//    val offering_to = Await.result(Users.lazyGetUser("uGfcjvhzihkjLR8D1LiFCqbBE2DkiKfk6vhRGafXZk0="), Duration.Inf).get
+    val offering_to = Await.result(Users.lazyGetUser("vJamK1drGiodBvw7ekXAQPpMBWe81koPd7ULKQv1nUM="), Duration.Inf).get
 
     val u1: UserAccount = UserAccount("friend1", "what a friend", in.flow_test.mock_public_key)
     val u2: UserAccount = UserAccount("friend2", "you call", in.flow_test.mock_public_key)

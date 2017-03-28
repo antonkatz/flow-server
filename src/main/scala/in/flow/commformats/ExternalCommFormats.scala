@@ -51,8 +51,8 @@ object ExternalCommFormats {
   case class TransactionResponse(transaction_id: String, from_user_id: String, to_user_id: String,
                                  amount:BigDecimal, timestamp: Long, offer_id: Option[String])
 
-  case class WalletResponse(committed_balance: BigDecimal, uncommited_interest: BigDecimal, transactions:
-  Iterable[TransactionResponse])
+  case class WalletResponse(principal: BigDecimal, interest: BigDecimal, uncommitted_interest: BigDecimal,
+                            transactions:Iterable[TransactionResponse])
 
   implicit def transactionToResponse(t: Transaction): TransactionResponse = {
     val tr = TransactionResponse(t.transaction_id, from_user_id = t.from.user_id, to_user_id = t.to.user_id,
@@ -65,9 +65,10 @@ object ExternalCommFormats {
 
   def walletToResponse(w: UserWallet): WalletResponse = {
     val trs = w.transactions map transactionToResponse
-    val cb = w.committed_balance getOrElse 0:BigDecimal
-    val ucb = 0:BigDecimal
-    WalletResponse(cb, ucb, trs)
+    val p = w.principal getOrElse 0:BigDecimal
+    val i = w.interest getOrElse 0:BigDecimal
+    val ui = w.uncommitted_interest getOrElse 0:BigDecimal
+    WalletResponse(p, i, ui, trs)
   }
 
   /* algorithm */
