@@ -21,8 +21,7 @@ object ExternalCommFormats {
 
   case class UserRepresentation(user_id: String, display_name: String)
 
-  /* offers
-   * todo. hours should be a big decimal */
+  /* offers */
 
   /** for creating an offer */
   case class OfferRequest(to_user_id: String, hours: BigDecimal, description: Option[String])

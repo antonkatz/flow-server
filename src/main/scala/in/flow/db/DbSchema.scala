@@ -70,12 +70,11 @@ class OffersTable(tag: Tag) extends Table[OfferStorable](tag, "offers") {
 
 class TransactionsTable(tag: Tag) extends Table[TransactionStorable](tag, "transactions") {
   def transactionId = column[String]("transaction_id", O.PrimaryKey)
-  def parentId = column[String]("parent_id")
+  def parentId = column[Option[String]]("parent_id")
   def from = column[String]("from_id")
   def to = column[String]("to_id")
   def amount = column[BigDecimal]("amount")
   def timestamp = column[Timestamp]("timestamp_created")
-  def has_children = column[Boolean]("has_children")
   def offerId = column[Option[String]]("offer_id")
   def transaction_type = column[String]("type")
 
@@ -84,7 +83,7 @@ class TransactionsTable(tag: Tag) extends Table[TransactionStorable](tag, "trans
   def offerIdFk = foreignKey("offer_fk", offerId, DbSchema.offers)(_.offerId)
   def parentIdFk = foreignKey("parent_fk", parentId, DbSchema.transactions)(_.transactionId)
 
-  def * = (transactionId, parentId, from, to, amount, timestamp, has_children,
+  def * = (transactionId, parentId, from, to, amount, timestamp,
     offerId, transaction_type) <> (TransactionStorable.tupled, TransactionStorable.unapply)
 }
 
@@ -127,5 +126,6 @@ object OfferStatusType extends Enumeration {
 /* transactions / wallet */
 
 /** @param offer_id could be empty or null */
-case class TransactionStorable(transaction_id: String, parent_id: String, from_user_id: String, to_user_id: String,
-amount: BigDecimal, timestamp: Timestamp, has_children: Boolean, offer_id: Option[String], transaction_type: String)
+case class TransactionStorable(transaction_id: String, parent_id: Option[String], from_user_id: String,
+                               to_user_id:String, amount: BigDecimal, timestamp: Timestamp,
+                               offer_id: Option[String], transaction_type: String)

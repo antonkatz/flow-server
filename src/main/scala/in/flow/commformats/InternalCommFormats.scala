@@ -30,7 +30,7 @@ object InternalCommFormats {
 
   object TransactionType extends Enumeration {
     type TransactionType = Value
-    val offer, interest = Value
+    val offer, interest, backflow = Value
   }
 
   case class UserWallet(owner: UserAccountPointer, transactions: Seq[Transaction],
@@ -47,23 +47,41 @@ object InternalCommFormats {
   }
 
   trait Transaction extends TransactionPointer {
-    val parent: TransactionPointer
+    val parent: Option[TransactionPointer]
     val from: UserAccountPointer
     val to: UserAccountPointer
     val amount: BigDecimal
     val timestamp: Instant
     val transaction_type: TransactionType
-    val has_children: Boolean
   }
 
   case class OfferTransaction(transaction_id: String,
-                              parent: TransactionPointer,
+                              parent: Option[TransactionPointer],
                               from: UserAccountPointer,
                               to: UserAccountPointer,
                               amount: BigDecimal,
                               timestamp: Instant,
-                              has_children: Boolean,
                               offer: OfferPointer) extends Transaction {
     override val transaction_type: TransactionType = TransactionType.offer
   }
+
+  case class BackflowTransaction(transaction_id: String,
+                              parent: Option[TransactionPointer],
+                              from: UserAccountPointer,
+                              to: UserAccountPointer,
+                              amount: BigDecimal,
+                              timestamp: Instant) extends Transaction {
+    override val transaction_type: TransactionType = TransactionType.backflow
+  }
+
+  case class InterestTransaction(transaction_id: String,
+                              parent: Option[TransactionPointer],
+                              from: UserAccountPointer,
+                              to: UserAccountPointer,
+                              amount: BigDecimal,
+                              timestamp: Instant) extends Transaction {
+    override val transaction_type: TransactionType = TransactionType.backflow
+  }
+
+
 }

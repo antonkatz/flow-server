@@ -15,6 +15,11 @@ import scribe.Logger
   */
 trait UserAccountPointer{
   val user_id: String
+
+  override def equals(o: scala.Any): Boolean = o match {
+    case o: UserAccountPointer => o.user_id == this.user_id
+    case _ => false
+  }
 }
 
 object UserAccountPointer {

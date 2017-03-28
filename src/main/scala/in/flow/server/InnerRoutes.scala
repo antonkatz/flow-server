@@ -37,7 +37,7 @@ trait InnerRoutes extends JsonSupport {
 
         complete(status, resp)
       }
-    } ~ path("is_registered") {
+    } ~ path("handshake") {
       logger.debug("checking if registered")
       val res: Option[RegistrationResponse] = Security.getOrLoadUser map { u => RegistrationResponse(u.user_id) }
       val resp: FlowResponse = toFlowResponse(res)(regResp.write)
@@ -100,7 +100,7 @@ trait InnerRoutes extends JsonSupport {
           val offer = Offers.retrieveOffer(req)
           val transaction = offer flowWith Wallet.performTransaction
           val resp: Future[(StatusCode, FlowResponse)] = transaction map { r =>
-            getStatusCode(r) -> r.map(transactionToResponse)
+            getStatusCode(r) -> r.map(_ map transactionToResponse)
           }
           complete(resp)
         }
