@@ -31,8 +31,9 @@ object Connections {
     *  @return list of ids mapped to dispaly names in the same order as the list of ids was given */
   def resolveIdsToNames(ids: Iterable[String], asker: UserAccount): Future[WithErrorFlow[Set[(String, String)]]] = {
     getVisibleConnectionsFlat(asker) map {cons =>
+      val consWithSelf = cons + asker
       val unique_ids = ids.toSet
-      val names = unique_ids map {id => cons find {_.user_id == id}} map {_ map {u => u.user_id -> u.display_name}}
+      val names = unique_ids map {id => consWithSelf find {_.user_id == id}} map {_ map {u => u.user_id -> u.display_name}}
       // there should not be any that are missing
       if (names exists {_.isEmpty})
         Left(InvalidInputError("hmm... snooping where you shouldn't, are you?"))

@@ -3,7 +3,7 @@ package in.flow.commformats
 import java.time.Instant
 
 import in.flow.commformats.InternalCommFormats._
-import in.flow.users.UserAccount
+import in.flow.users.{UserAccount, UserAccountPointer}
 
 import scala.collection.Iterable
 
@@ -64,7 +64,7 @@ object ExternalCommFormats {
   }
 
   def walletToResponse(w: UserWallet): WalletResponse = {
-    val trs = w.transactions map transactionToResponse
+    val trs = {w.transactions sortBy (_.timestamp) reverse} map transactionToResponse
     val p = w.principal getOrElse 0:BigDecimal
     val i = w.interest getOrElse 0:BigDecimal
     val ui = w.uncommitted_interest getOrElse 0:BigDecimal
