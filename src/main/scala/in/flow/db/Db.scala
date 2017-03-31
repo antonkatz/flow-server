@@ -18,7 +18,7 @@ object Db {
   private lazy val file = scala.io.Source.fromFile("settings")
   private lazy val settings = file.getLines().toSeq
 
-  val db: slick.jdbc.JdbcBackend.DatabaseDef = Database.forURL(getUrl + ";DB_CLOSE_DELAY=-1",
+  private val db: slick.jdbc.JdbcBackend.DatabaseDef = Database.forURL(getUrl + ";DB_CLOSE_DELAY=-1",
     driver = "org.postgresql.Driver")
 
   private val schema_creation_future = db.run(DBIOAction.seq(

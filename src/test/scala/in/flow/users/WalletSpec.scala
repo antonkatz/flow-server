@@ -25,7 +25,7 @@ class WalletSpec extends WordSpec with Matchers {
   "Wallet" when {
     val u1: UserAccount = UserAccount("wallet1", "what a friend", in.flow_test.mock_public_key)
     val u2: UserAccount = UserAccount("wallet2", "you call", in.flow_test.mock_public_key)
-    val ins = Db.db.run(DBIO.seq(DbSchema.user_accounts += u1.storable, DbSchema.user_accounts += u2.storable))
+    val ins = Db.run(DBIO.seq(DbSchema.user_accounts += u1.storable, DbSchema.user_accounts += u2.storable))
     Await.ready(ins, Duration.Inf)
 
     Connections.connectUsers(u1.user_id, u2.user_id, UserConnectionType.friend)

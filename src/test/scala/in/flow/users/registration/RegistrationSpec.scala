@@ -30,7 +30,7 @@ class RegistrationSpec extends WordSpec with Matchers {
   "Registration module" when {
 
     val u: UserAccount = UserAccount("primordial_creator", "desired test name", flow_test.mock_public_key)
-    val ins = Db.db.run(DbSchema.user_accounts += u.storable)
+    val ins = Db.run(DbSchema.user_accounts += u.storable)
     Await.ready(ins, Duration.Inf)
 
     "creating an invitation code" should {
@@ -39,7 +39,7 @@ class RegistrationSpec extends WordSpec with Matchers {
         i shouldBe a [Right[_, Invitation]]
 
         val q = DbSchema.invitations.filter(_.code === i.right.get.code).result
-        val qr = Await.result(Db.db.run( q ), Duration.Inf)
+        val qr = Await.result(Db.run( q ), Duration.Inf)
 
         qr.head.code should not be empty
       }

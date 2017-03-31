@@ -42,7 +42,7 @@ object Registrar {
       case None => Left(ie)
       case Some(code_words) =>
         val i = Invitation(from, code_words)
-        val df = Db.db.run(DbSchema.invitations += i.storable)
+        val df = Db.run(DbSchema.invitations += i.storable)
         try {
           Await.ready(df, 1 second)
           Right(i)

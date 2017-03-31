@@ -25,7 +25,7 @@ class OffersSpec extends WordSpec with Matchers {
 
     val u1: UserAccount = UserAccount("friend1", "what a friend", in.flow_test.mock_public_key)
     val u2: UserAccount = UserAccount("friend2", "you call", in.flow_test.mock_public_key)
-    val ins = Db.db.run(DBIO.seq(DbSchema.user_accounts += u1.storable, DbSchema.user_accounts += u2.storable))
+    val ins = Db.run(DBIO.seq(DbSchema.user_accounts += u1.storable, DbSchema.user_accounts += u2.storable))
     Await.ready(ins, Duration.Inf)
 
     Connections.connectUsers(offering_to.user_id, u1.user_id, UserConnectionType.friend)

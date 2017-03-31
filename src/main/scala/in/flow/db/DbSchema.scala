@@ -6,6 +6,7 @@ import in.flow.db.OfferStatusType.OfferStatusType
 import in.flow.users.UserAccount
 import in.flow.users.registration.Invitation
 import slick.lifted.Shape._
+import slick.sql.SqlProfile.ColumnOption.SqlType
 //import slick.jdbc.PostgresProfile._
 import slick.jdbc.PostgresProfile.api._
 
@@ -15,6 +16,7 @@ import scala.concurrent.duration.Duration
 import slick.lifted.ShapedValue
 import slick.lifted.ProvenShape
 import java.sql.Timestamp
+import in.flow.getNow
 
 /**
   * Created by anton on 06/03/17.
@@ -23,18 +25,21 @@ class UserAccountsTable(tag: Tag) extends Table[UserAccountStorable](tag, "user_
   def id = column[String]("id", O.PrimaryKey)
   def displayName = column[String]("display_name")
   def publicKey = column[Array[Byte]]("public_key")
+  def timestamp = column[Timestamp]("timestamp", SqlType("timestamp with time zone"))
 
-  def * : ProvenShape[UserAccountStorable] = (id, displayName, publicKey) <> (UserAccountStorable.tupled,
+  def * : ProvenShape[UserAccountStorable] = (id, displayName, publicKey, timestamp) <> (UserAccountStorable.tupled,
     UserAccountStorable.unapply)
 }
 
 class InvitationsTable(tag: Tag) extends Table[InvitationStorable](tag, "invitations") {
   def code = column[String]("code", O.PrimaryKey)
   def userId = column[String]("user")
+  def timestamp = column[Timestamp]("timestamp", SqlType("timestamp with time zone"))
 
   def user = foreignKey("user_fk", userId, DbSchema.user_accounts)(_.id)
 
-  override def * : ProvenShape[InvitationStorable] = (userId, code) <> (InvitationStorable.tupled, InvitationStorable.unapply)
+  override def * : ProvenShape[InvitationStorable] = (userId, code, timestamp) <> (InvitationStorable.tupled,
+    InvitationStorable.unapply)
 }
 
 class UserAccountConnectionsTable(tag: Tag) extends
@@ -43,11 +48,13 @@ class UserAccountConnectionsTable(tag: Tag) extends
   def from = column[String]("from")
   def to = column[String]("to")
   def conType = column[String]("connection_type")
+  def timestamp = column[Timestamp]("timestamp", SqlType("timestamp with time zone"))
 
   def userFrom = foreignKey("user_fk_from", from, DbSchema.user_accounts)(_.id)
   def userTo = foreignKey("user_fk_to", to, DbSchema.user_accounts)(_.id)
 
-  def * = (id, from, to, conType) <> (UserAccountConnectionStorable.tupled, UserAccountConnectionStorable.unapply)
+  def * = (id, from, to, conType, timestamp) <> (UserAccountConnectionStorable.tupled,
+    UserAccountConnectionStorable.unapply)
 }
 
 class OffersTable(tag: Tag) extends Table[OfferStorable](tag, "offers") {
@@ -56,10 +63,10 @@ class OffersTable(tag: Tag) extends Table[OfferStorable](tag, "offers") {
   def to = column[String]("to_id")
   def hours = column[BigDecimal]("hours")
   def description = column[String]("description")
-  def timestamp_created = column[Timestamp]("timestamp_created")
+  def timestamp_created = column[Timestamp]("timestamp_created", SqlType("timestamp with time zone"))
   /* updates */
   def status = column[String]("status")
-  def timestamp_updated = column[Timestamp]("timestamp_updated")
+  def timestamp_updated = column[Timestamp]("timestamp_updated", SqlType("timestamp with time zone"))
 
   def userFrom = foreignKey("user_fk_from", from, DbSchema.user_accounts)(_.id)
   def userTo = foreignKey("user_fk_to", to, DbSchema.user_accounts)(_.id)
@@ -74,7 +81,7 @@ class TransactionsTable(tag: Tag) extends Table[TransactionStorable](tag, "trans
   def from = column[String]("from_id")
   def to = column[String]("to_id")
   def amount = column[BigDecimal]("amount")
-  def timestamp = column[Timestamp]("timestamp_created")
+  def timestamp = column[Timestamp]("timestamp_created", SqlType("timestamp with time zone"))
   def offerId = column[Option[String]]("offer_id")
   def transaction_type = column[String]("type")
 
@@ -95,11 +102,13 @@ object DbSchema {
   val transactions: TableQuery[TransactionsTable] = TableQuery[TransactionsTable]
 }
 
-case class UserAccountStorable(id: String, display_name: String, public_key: Array[Byte])
+case class UserAccountStorable(id: String, display_name: String, public_key: Array[Byte],
+                               timestamp: Timestamp = Timestamp.from(getNow))
 
-case class InvitationStorable(user_id: String, code: String)
+case class InvitationStorable(user_id: String, code: String, timestamp: Timestamp = Timestamp.from(getNow))
 
-case class UserAccountConnectionStorable(connection_id: String, from_id: String, to_id: String, connection_type: String)
+case class UserAccountConnectionStorable(connection_id: String, from_id: String, to_id: String, connection_type: String,
+                                         timestamp: Timestamp = Timestamp.from(getNow))
 
 /* offers */
 
