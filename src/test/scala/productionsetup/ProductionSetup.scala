@@ -5,6 +5,7 @@ import java.util.Base64
 
 import in.flow.db.{Db, DbSchema}
 import in.flow.security.Encryption
+import in.flow.users.registration.Registrar
 import in.flow.users.{UserAccount, Users}
 import in.flow.utils.Hex
 import in.flow_test
@@ -17,7 +18,7 @@ import slick.jdbc.PostgresProfile.api._
 /**
   * Created by anton on 12/02/17.
   */
-class EncryptionSpec extends WordSpec {
+class ProductionSetup extends WordSpec {
   "Production setup" when {
 
     "creating antons account" should {
@@ -37,7 +38,8 @@ class EncryptionSpec extends WordSpec {
            |IhS/dU0xsBE1UkLXHJgOm+8CAwEAAQ==
            |-----END PUBLIC KEY-----
            |""".stripMargin
-      "succeed with full key" in {
+      var anton: UserAccount = null
+      "generate antons account" in {
         val key = Encryption.parsePublicKey(antons_key)
         key foreach {k =>
           Users.getUserId(k) foreach {id =>
@@ -45,6 +47,7 @@ class EncryptionSpec extends WordSpec {
             val timestamp = Timestamp.from(now)
             val inst = timestamp.toInstant
             val u: UserAccount = UserAccount(id, "anton kats", k)
+            anton = u
             val ins = Db.run(DbSchema.user_accounts += u.storable)
             val r = Await.result(ins, Duration.Inf)
             println(r)
@@ -54,6 +57,14 @@ class EncryptionSpec extends WordSpec {
             val ret_inst = ret_time.toInstant
             print(ret)
           }
+        }
+      }
+
+      "generate some invite codes from anton" in {
+        println()
+        for (i <- 1 to 20) {
+          val i = Registrar.createInvitation(anton)
+          println(i.right.get.code)
         }
       }
     }

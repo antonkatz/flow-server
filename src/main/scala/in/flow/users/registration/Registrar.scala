@@ -47,7 +47,9 @@ object Registrar {
           Await.ready(df, 1 second)
           Right(i)
         } catch {
-          case _: Throwable => Left(ie)
+          case e: Throwable =>
+            logger.error(s"failed to create an invitation: ${e.getMessage}")
+            Left(ie)
         }
     }
   }
@@ -76,7 +78,9 @@ object Registrar {
       val r = Await.result(Db.run(q), 1 second)
       Some(r)
     } catch {
-      case _: Throwable => None
+      case e: Throwable =>
+        logger.error(s"failed to check if an invitation code exists: ${e.getMessage}")
+        None
     }
   }
 
