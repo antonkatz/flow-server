@@ -92,7 +92,7 @@ trait ServerDirectives {
     r.mapEntity { e =>
       e.transformDataBytes(secureRequestFlow(format))
     }
-  } trequire (predicate = { _ =>
+  } trequire (predicate = { _ =>  // todo. isn't there a better way to check for executability?
     Security.provideError.isEmpty
   })
 

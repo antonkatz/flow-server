@@ -102,8 +102,8 @@ object Security {
         getPublicKey match {
           case Some(pk) =>
             logger.debug("Sending a new symmetric key to the client")
-            s.user foreach {u => SymmetricKeyCache.save(u, s.getSymmetricKey)}
-            if (s.user isEmpty) logger.warn("There was no user to store the key in cache")
+            getOrLoadUser foreach {u => SymmetricKeyCache.save(u, s.getSymmetricKey)}
+            if (getOrLoadUser isEmpty) logger.warn("There was no user to store the key in cache")
             Some(Encryption.send(skey, pk))
           case _ => throw new NeedAsymmetricKey
         }
@@ -129,16 +129,24 @@ object Security {
     }
   }
 
-  def getUserId(implicit security: Security): Option[String] = security.user.map(_.user_id)
+  def getUserId(implicit security: Security): Option[String] = getOrLoadUser.map(_.user_id)
 
   /** if the user is not present, first tries to find one using a public key
     * if the user is not present or found, sets the security context as non-executable with an error
     * sets user if found */
   def getOrLoadUser(implicit s: Security): Option[UserAccount] = {
+    val u = getOrLoadUserWithoutError
+    if (u.isEmpty) {
+        setAsNonExecutable(new MissingUser())
+    }
+    u
+  }
+
+  private def getOrLoadUserWithoutError(implicit s: Security): Option[UserAccount] = {
     var u = s.user
     if (u.isEmpty) {
       u = getPublicKey flatMap {pk => Await.result(Users.getUser(pk), Duration.create(2, TimeUnit.SECONDS))}
-      u.fold(setAsNonExecutable(new MissingUser()))(setUser)
+      u foreach setUser
     }
     u
   }
@@ -146,14 +154,14 @@ object Security {
   def setUser(user: UserAccount)(implicit s: Security): Unit = s.user = Option(user)
 
   def refreshSymmetricKey(implicit s: Security): Either[Throwable, Unit] = execute { () =>
-    s.user foreach SymmetricKeyCache.delete
-    if (s.user.isEmpty) logger.warn("Symmetric key was not refreshed because there is no user")
+    getOrLoadUser foreach SymmetricKeyCache.delete
+    if (getOrLoadUser.isEmpty) logger.warn("Symmetric key was not refreshed because there is no user")
     s.initSymmetricKey()
   }
 
   /** @return [[Left]] is new, [[Right]] if retrieved from cache */
   private def getOrGenerateKey(implicit security: Security) = execute[Either[SecretKey, SecretKey]] {() =>
-    (security.user flatMap SymmetricKeyCache.retrieve).fold[Either[SecretKey, SecretKey]] ({
+    (getOrLoadUserWithoutError flatMap SymmetricKeyCache.retrieve).fold[Either[SecretKey, SecretKey]] ({
     val k = Encryption.generateSymmetricKey
     Left(k)
   })(Right(_))

@@ -153,6 +153,7 @@ object Registrar {
           conFuture onComplete {
             _ collect {
               case Left(_) => logger.error(s"Could not connect new user ${u.user_id}")
+              case Right(_) => Unit
             } recover {
               case e => logger.error(s"Could not connect new user ${u.user_id}: ${e.getMessage}")
             }
