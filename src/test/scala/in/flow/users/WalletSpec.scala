@@ -28,7 +28,7 @@ class WalletSpec extends WordSpec with Matchers {
     val ins = Db.run(DBIO.seq(DbSchema.user_accounts += u1.storable, DbSchema.user_accounts += u2.storable))
     Await.ready(ins, Duration.Inf)
 
-    Connections.connectUsers(u1.user_id, u2.user_id, UserConnectionType.friend)
+    Connections.connectUsers(u1, u2, UserConnectionType.friend)
 
 
     "performing transactions" should {

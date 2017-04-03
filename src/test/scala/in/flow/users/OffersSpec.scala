@@ -28,8 +28,8 @@ class OffersSpec extends WordSpec with Matchers {
     val ins = Db.run(DBIO.seq(DbSchema.user_accounts += u1.storable, DbSchema.user_accounts += u2.storable))
     Await.ready(ins, Duration.Inf)
 
-    Connections.connectUsers(offering_to.user_id, u1.user_id, UserConnectionType.friend)
-    Connections.connectUsers(offering_to.user_id, u2.user_id, UserConnectionType.friend)
+    Connections.connectUsers(offering_to, u1, UserConnectionType.friend)
+    Connections.connectUsers(offering_to, u2, UserConnectionType.friend)
 
     "creating on offer" should {
       "do so for external testing" in {

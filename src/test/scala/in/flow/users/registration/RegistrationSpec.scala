@@ -9,7 +9,7 @@ import in.flow.commformats.ExternalCommFormats.RegistrationRequest
 import in.flow.commformats.InternalCommFormats.UserConnectionType
 import in.flow.db.{Db, DbSchema}
 import in.flow.security.Encryption
-import in.flow.users.{Connections, UserAccount, Users}
+import in.flow.users.{Connections, UserAccount, UserAccountPointer, Users}
 import in.flow.users.registration.{Invitation, Registrar}
 import org.scalatest.{Matchers, WordSpec}
 import scribe.formatter.{Formatter, FormatterBuilder}
@@ -67,7 +67,8 @@ class RegistrationSpec extends WordSpec with Matchers {
         val ins = Db.run(DBIO.seq(DbSchema.user_accounts += uf.storable, DbSchema.user_accounts += ut.storable))
         Await.ready(ins, Duration.Inf)
 
-        Connections.connectUsers("from_test_id", "to_test_id", UserConnectionType.friend)
+        Connections.connectUsers(UserAccountPointer("from_test_id"), UserAccountPointer("to_test_id"),
+          UserConnectionType.friend)
       }
     }
 

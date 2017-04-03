@@ -5,7 +5,7 @@ import java.util.Base64
 import in.flow.db.{Db, DbSchema, UserAccountConnectionStorable}
 import in.flow.commformats.InternalCommFormats.UserConnectionType.UserConnectionType
 import scribe.Logger
-import in.flow.{DatabaseError, InvalidInputError, WithErrorFlow, getLogger, global_sha}
+import in.flow.{DatabaseError, FutureErrorFlow, InvalidInputError, WithErrorFlow, getLogger, global_sha}
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -42,16 +42,18 @@ object Connections {
     }
   }
 
+  /** Not Safe - does not check that the users actually exists */
   def connectUsers(from: UserAccountPointer, to: UserAccountPointer, connection_type: UserConnectionType):
-  Future[WithErrorFlow[Unit]] = {
-    connectUsers(from_id = from.user_id, to_id = to.user_id, connection_type)
+  FutureErrorFlow[_] = {
+    checkConnectionExists(from, to) flowWith((exists: Boolean) => if (!exists) {
+      storeConnection(from_id = from.user_id, to_id = to.user_id, connection_type)
+    } else Future(Right()))
   }
 
-  @deprecated
   /** asynchronous; NOT SAFE -- does no check that the user ids exist, does not check that
     * the connection already exists (the database should though)
     * @return a future of database access to create the connection */
-  private[users] def connectUsers(from_id: String, to_id: String,
+  private def storeConnection(from_id: String, to_id: String,
                                   connection_type: UserConnectionType): Future[WithErrorFlow[Unit]] = {
     val id = Base64.getEncoder.encodeToString(global_sha.digest((from_id + to_id).getBytes))
     val con = UserAccountConnectionStorable(id, from_id, to_id, connection_type.toString)
@@ -60,6 +62,19 @@ object Connections {
       case e => logger.error(s"Could not store a connection between users ${from_id} and ${to_id}: " +
         s"${e.getMessage}")
         Left(DatabaseError("we couldn't connect you two folks"))
+    }
+  }
+
+  /** checks that `u1` is not connected to `u2` and that `u2` is not connected to `u1` */
+  private def checkConnectionExists(u1: UserAccountPointer, u2: UserAccountPointer): FutureErrorFlow[Boolean] = {
+    val q = DbSchema.user_account_connections.filter(con =>
+      (con.from === u1.user_id && con.to === u2.user_id) ||
+        (con.to === u1.user_id && con.from === u2.user_id)
+    ).exists
+    Db.run(q.result) map {Right(_)} recover {
+      case e => logger.error(s"""Could not check if the connection already exists between ${u1.user_id} and ${u2
+        .user_id}: ${e.getMessage}""")
+        Left(DatabaseError("we couldn't check if you folks are connected"))
     }
   }
 

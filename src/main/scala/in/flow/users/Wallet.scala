@@ -3,7 +3,7 @@ package in.flow.users
 import java.sql.Timestamp
 import java.util.Base64
 
-import in.flow.algorithm.Accounting
+import in.flow.algorithm.AccountingRules
 import in.flow.commformats.InternalCommFormats.{Transaction, TransactionType, UserWallet, _}
 import in.flow.db.{Db, DbSchema, TransactionStorable}
 import in.flow.{DatabaseError, FutureErrorFlow, _}
@@ -104,11 +104,11 @@ object Wallet {
     wallet.transactions filter { t => !(parent_ids contains t.transaction_id) & (t.to == wallet.owner) }
   }
 
-  /** @see [[Accounting.loadPrincipal()]] [[Accounting.loadInterest()]] */
+  /** @see [[AccountingRules.loadPrincipal()]] [[AccountingRules.loadInterest()]] */
   def loadAuxWalletInfo(wallet: UserWallet): UserWallet = {
-    var w = Accounting.loadPrincipal(wallet)
-    w = Accounting.loadInterest(w)
-    Accounting.loadUncommitedInterest(w)
+    var w = AccountingRules.loadPrincipal(wallet)
+    w = AccountingRules.loadInterest(w)
+    AccountingRules.loadUncommitedInterest(w)
   }
 
   /** HOT. The database access can fail giving wrong balances

@@ -37,10 +37,13 @@ case class UserAccount(user_id: String, display_name: String, public_key: Public
 
   private var _connections:Seq[(UserAccount, UserAccountConnection)] = Nil
 
+  /* todo. this is plain ugly */
+
   private[users] def withUnloadedConnections(cons:
                                             Seq[(Future[Option[UserAccount]], UserAccountConnection)]): UserAccount = {
     unloaded_connections = cons
     unloaded_connections_flag = true
+    loaded_connections_flag = false
     this
   }
 

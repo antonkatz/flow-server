@@ -5,7 +5,7 @@ import java.security.PublicKey
 import _root_.in.flow.{DatabaseError, FlowError, InvalidInputError, MissingPublicKeyError, UnknownError => UEr, _}
 import com.wix.accord._
 import in.flow.db._
-import in.flow.users.{Connections, UserAccount, Users}
+import in.flow.users.{Connections, UserAccount, UserAccountPointer, Users}
 import com.wix.accord.dsl._
 import _root_.in.flow.commformats.ExternalCommFormats._
 import _root_.in.flow.commformats.InternalCommFormats.UserConnectionType
@@ -147,9 +147,12 @@ object Registrar {
         // store user, and delete invitation code
         val uins: Int = Await.result(Db.run(DbSchema.user_accounts += u.storable), 1 second)
         if (uins == 1) {
+          // todo. this code needs rework; split into several functions
           // connecting to the issuer of the invitation code
-          val conFuture = Db.run(DbSchema.invitations.filter(_.code === ic).result) flatMap (invs =>
-            Connections.connectUsers(invs.head.user_id, u.user_id, UserConnectionType.creator))
+          val conFuture = Db.run(DbSchema.invitations.filter(_.code === ic).result) flatMap {invs =>
+            val inv_user = UserAccountPointer(invs.head.user_id)
+            Connections.connectUsers(inv_user, u, UserConnectionType.creator)
+          }
           conFuture onComplete {
             _ collect {
               case Left(_) => logger.error(s"Could not connect new user ${u.user_id}")

@@ -16,7 +16,7 @@ import scala.concurrent.duration.Duration
 /**
   * For testing encryption filters on the servlet
   */
-class AccountingSpec extends WordSpec with Matchers with BeforeAndAfterAll {
+class AccountingRulesSpec extends WordSpec with Matchers with BeforeAndAfterAll {
   private val logger: Logger = "AccountingSpec"
   var for_cleanup = Set[Transaction]()
 

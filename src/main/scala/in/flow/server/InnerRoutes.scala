@@ -14,7 +14,7 @@ import scala.concurrent.Future
 import scala.language.implicitConversions
 import commformats.InternalCommFormats._
 import commformats.ExternalCommFormats._
-import in.flow.algorithm.Accounting
+import in.flow.algorithm.AccountingRules
 import users.Wallet
 
 /**
@@ -98,7 +98,7 @@ trait InnerRoutes extends JsonSupport {
         sd.sentity(as[OfferActionRequest], s) { req =>
           logger.debug(s"accepting offer ${req.offer_id} for ${Security.getUserId.getOrElse("[missing id]")}")
           val offer = Offers.retrieveOffer(req)
-          val transaction = offer flowWith Wallet.performTransaction
+          val transaction = offer flowWith Users.performTransaction
           val resp: Future[(StatusCode, FlowResponse)] = transaction map { r =>
             getStatusCode(r) -> r.map(_ map transactionToResponse)
           }
@@ -128,7 +128,7 @@ trait InnerRoutes extends JsonSupport {
     } ~ pathPrefix("algorithm") {
       path("interest") {
         sd.sentity(as[TimeUnitRequest], s) { time_unit =>
-          val i = Accounting.getPerTimeInterestRate(time_unit.time_unit)
+          val i = AccountingRules.getPerTimeInterestRate(time_unit.time_unit)
           val resp = FlowResponse.success(BigDecimalJsonFormat.write(i))
           complete(resp)
         }

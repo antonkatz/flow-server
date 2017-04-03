@@ -4,8 +4,10 @@ import java.security.PublicKey
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
-import in.flow.commformats.InternalCommFormats.UserConnectionType
-import in.flow.{WithErrorFlow, global_sha}
+import com.sun.org.apache.xml.internal.security.algorithms.JCEMapper.Algorithm
+import in.flow.algorithm.TransactionRules
+import in.flow.commformats.InternalCommFormats.{Offer, Transaction, UserConnectionType}
+import in.flow.{FutureErrorFlow, WithErrorFlow, global_sha}
 import in.flow.db.{Db, DbSchema, UserAccountConnectionStorable, UserAccountStorable}
 import in.flow.security.Encryption
 import in.flow.commformats.InternalCommFormats.UserConnectionType.UserConnectionType
@@ -30,7 +32,12 @@ import scala.util.control.Exception.allCatch
 object Users {
   private val logger = "Users".logger
 
-  /** @see [[getUser(String)]]*/
+  /** @see [[in.flow.algorithm.TransactionRules#performTransaction]]*/
+  def performTransaction(offer: Offer): FutureErrorFlow[Iterable[Transaction]] = {
+    TransactionRules.performTransaction(offer)
+  }
+
+    /** @see [[getUser(String)]]*/
   def getUser(public_key: PublicKey): Future[Option[UserAccount]] = {
     getUserId(public_key) map {id => getUser(id)} getOrElse Future(None)
   }
@@ -48,6 +55,8 @@ object Users {
   def loadUserConnections(u: UserAccount): Future[UserAccount] = if(!u.connectionsGiven) {
     populateConnections(u)
   } else Future(u)
+
+  def reloadUserConnections(u: UserAccount): Future[UserAccount] = populateConnections(u)
 
   /** unlike regular get user loads only the id, display_name, and public key */
   def lazyGetUser(id: String): Future[Option[UserAccount]] = {
@@ -102,6 +111,8 @@ object Users {
       case e => logger.error(s"Could not populate user ${u.user_id} connections: ${e.getMessage}"); u
     }
   }
+
+  /* todo. this is terrible*/
 
   /** extract valid connections from the futures.
     * todo. could be implemented more efficiently */

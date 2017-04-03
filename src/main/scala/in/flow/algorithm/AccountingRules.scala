@@ -6,7 +6,7 @@ import in.flow.getNow
 /**
   * Created by anton on 23/03/17.
   */
-object Accounting {
+object AccountingRules {
 
   /** @return the amount with a sign indicating if the transaction was inflowing or an outflowing*/
   def getRelativeAmount(u: UserAccountPointer, t: Transaction): BigDecimal =
@@ -37,7 +37,7 @@ object Accounting {
   }
 
   private def getSumOfType(wallet: UserWallet, typeCheck: (Transaction) => Boolean): BigDecimal = {
-    val raf = (t: Transaction) => Accounting.getRelativeAmount(wallet.owner, t)
+    val raf = (t: Transaction) => AccountingRules.getRelativeAmount(wallet.owner, t)
     wallet.transactions.filter(typeCheck).map(raf).sum
   }
 

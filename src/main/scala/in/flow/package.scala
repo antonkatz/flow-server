@@ -8,6 +8,7 @@ import scribe.formatter.FormatterBuilder
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Success, Try}
 /**
   * Global variables
   */
@@ -37,7 +38,7 @@ package object flow {
   type WithErrorFlow[T] = Either[FlowError, T]
   type FutureErrorFlow[T] = Future[WithErrorFlow[T]]
 
-  implicit class FlowableFuture[T](f: Future[WithErrorFlow[T]]) {
+  implicit class FlowableFuture[T](f: FutureErrorFlow[T]) {
     /** Transforms this future's (if it is successful) internal [[WithErrorFlow]] right projection with the given
       * function; propagates [[Left]] with no changes. */
     def flowWith[O](next: (T) => FutureErrorFlow[O]): FutureErrorFlow[O] = f flatMap {
@@ -48,6 +49,17 @@ package object flow {
       * [[WithErrorFlow]] is [[Right]]). Propagates the [[Left]] otherwise. */
     def flowRight[O](next: (T) => O): FutureErrorFlow[O] = f map {
       either => either.fold(e => Left(e), s => Right(next(s)))
+    }
+
+    /** sets a onComplete function on this future
+      * @return this future unchanged, with an onComplete set */
+    def flowComplete[O](comp: (T) => O): FutureErrorFlow[T] = {
+      f onComplete {t: Try[WithErrorFlow[T]] =>
+        t.collect {
+          case Right(what: T) => comp(what)
+        }
+      }
+      return f
     }
   }
 
