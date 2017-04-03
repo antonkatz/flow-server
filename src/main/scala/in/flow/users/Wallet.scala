@@ -55,14 +55,14 @@ object Wallet {
     Base64.getEncoder.encodeToString(t_id_bytes)
   }
 
-  /** must not be used for interest */
+  /** takes inflowing transactions of the `from` user, and closes them up as a transfer to the `to` user
+    * must not be used for interest
+    * @param transBuilder a functions taking `parent_id` and `amount`, returning a [[Transaction]] */
   private[users] def evolveTransactions(from: UserAccountPointer, amount: BigDecimal,
                                         transBuilder: (Option[TransactionPointer], BigDecimal) => Transaction):
   FutureErrorFlow[Iterable[Transaction]] = {
     getWallet(from) flowRight { wallet =>
-      // todo. remove
-      val open_transactions_debug = findOpenTransactions(wallet).sortBy(_.timestamp)
-      // childless, sorted
+      // childless, sorted, oldest first
       var open_transactions = findOpenTransactions(wallet).sortBy(_.timestamp)
       var remaining_balance = amount
       var new_transactions = Seq[Transaction]()

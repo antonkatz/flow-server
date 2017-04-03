@@ -42,7 +42,12 @@ object Connections {
     }
   }
 
+  def connectUsers(from: UserAccountPointer, to: UserAccountPointer, connection_type: UserConnectionType):
+  Future[WithErrorFlow[Unit]] = {
+    connectUsers(from_id = from.user_id, to_id = to.user_id, connection_type)
+  }
 
+  @deprecated
   /** asynchronous; NOT SAFE -- does no check that the user ids exist, does not check that
     * the connection already exists (the database should though)
     * @return a future of database access to create the connection */

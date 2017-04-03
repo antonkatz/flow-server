@@ -21,14 +21,16 @@ object Accounting {
     wallet.copy(interest = Option(getSumOfType(wallet, (t) => t.isInstanceOf[InterestTransaction])))
   }
 
+  /** take inflowing transactoins, disregarding outflowing transactions, and calculate interest upon those */
   def loadUncommitedInterest(wallet: UserWallet): UserWallet = {
     val open_trs = Wallet.findOpenTransactions(wallet)
     val now = getNow
-    val interest = open_trs map {t =>
+    var interest = open_trs map {t =>
       val tdiff: BigDecimal = (BigDecimal(now.toEpochMilli) - t.timestamp.toEpochMilli) / 1000
       val rate = getPerTimeInterestRate(tdiff) - 1
       t.amount * rate
     } sum;
+
     wallet.copy(uncommitted_interest = Option(interest))
   }
 
@@ -45,12 +47,12 @@ object Accounting {
     Math.pow(2, (1 / num_of_compounds).toDouble)
   }
 
-  def getUncommittedInterest(wallet: UserWallet): BigDecimal = {
-    val inflow = wallet.transactions.filter(_.to == wallet.owner)
-    val now = getNow
-    inflow map {t =>
-      val passed_time = t.timestamp minusNanos now.getNano getEpochSecond;
-      t.amount * getPerTimeInterestRate(passed_time)
-    } sum
-  }
+//  def getUncommittedInterest(wallet: UserWallet): BigDecimal = {
+//    val inflow = wallet.transactions.filter(_.to == wallet.owner)
+//    val now = getNow
+//    inflow map {t =>
+//      val passed_time = t.timestamp minusNanos now.getNano getEpochSecond;
+//      t.amount * getPerTimeInterestRate(passed_time)
+//    } sum
+//  }
 }
