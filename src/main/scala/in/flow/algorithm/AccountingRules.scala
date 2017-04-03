@@ -10,26 +10,43 @@ object AccountingRules {
 
   /** @return the amount with a sign indicating if the transaction was inflowing or an outflowing*/
   def getRelativeAmount(u: UserAccountPointer, t: Transaction): BigDecimal =
-    if (u == t.from) t.amount * -1 else t.amount
+    if (u == t.from && u != t.to) t.amount * -1 else t.amount
 
-  /** sums up all non-interest transactions in a wallet, that have a parent
+  /** sums up all open non-interest transactions in a wallet, that have a parent
     * @return sum of all user transactions that are not interest transactions; if the balance is negative, returns 0,
     *         because it does not account for transactions with no parent */
   def loadPrincipal(wallet: UserWallet): UserWallet = {
-    val with_parent = wallet.transactions.filter(_.parent.isDefined)
+    val with_parent = Wallet.getOpenTransactions(wallet).filter(_.parent.isDefined)
     val p = getSumOfType(with_parent, wallet.owner, (t) => !t.isInstanceOf[InterestTransaction])
     wallet.copy(principal = Option(p))
   }
 
   def loadInterest(wallet: UserWallet): UserWallet = {
-    wallet.copy(interest = Option(getSumOfType(wallet, (t) => t.isInstanceOf[InterestTransaction])))
+    val open = Wallet.getOpenTransactions(wallet)
+    wallet.copy(interest = Option(getSumOfType(open, wallet.owner, (t) => t.isInstanceOf[InterestTransaction])))
+  }
+
+  /**@return interest that can be committed at this point, or None if the interval between applications haven't
+    *         passed yet */
+  def getInterestToCommit(wallet: UserWallet): Option[BigDecimal] = {
+    val last_interest = wallet.transactions.collect {
+      case t: InterestTransaction => t
+    }.sortBy(_.timestamp).reverse.headOption
+
+    if (last_interest.isEmpty ||
+      (getNow.toEpochMilli - last_interest.get.timestamp.toEpochMilli) > AlgorithmSettings.commit_interest_every) {
+      val with_uinterest = loadUncommitedInterest(wallet)
+      // 0 is considered no interest
+      if (with_uinterest.uncommitted_interest.getOrElse(BigDecimal(0)) > BigDecimal(0))
+        with_uinterest.uncommitted_interest else None
+    } else None
   }
 
   /** take inflowing transactoins, disregarding outflowing transactions, and calculate interest upon those */
   def loadUncommitedInterest(wallet: UserWallet): UserWallet = {
-    val open_trs = Wallet.findOpenTransactions(wallet)
+    val open_trs = Wallet.getOpenTransactions(wallet)
     val now = getNow
-    var interest = open_trs map {t =>
+    val interest = open_trs map { t =>
       val tdiff: BigDecimal = (BigDecimal(now.toEpochMilli) - t.timestamp.toEpochMilli) / 1000
       val rate = getPerTimeInterestRate(tdiff) - 1
       t.amount * rate
@@ -55,13 +72,4 @@ object AccountingRules {
     val num_of_compounds = AlgorithmSettings.principle_double_in / time_unit
     Math.pow(2, (1 / num_of_compounds).toDouble)
   }
-
-//  def getUncommittedInterest(wallet: UserWallet): BigDecimal = {
-//    val inflow = wallet.transactions.filter(_.to == wallet.owner)
-//    val now = getNow
-//    inflow map {t =>
-//      val passed_time = t.timestamp minusNanos now.getNano getEpochSecond;
-//      t.amount * getPerTimeInterestRate(passed_time)
-//    } sum
-//  }
 }

@@ -8,5 +8,10 @@ object AlgorithmSettings {
   val transaction_amount_lower_bound: BigDecimal = 0.1
 
   /** in what time the financial principal doubles, in seconds */
-  val principle_double_in: Double = 60 * 60 * 24 * 7 * 2 // two weeks
+//  val principle_double_in: Long = 60 * 60 * 24 * 7 * 2 // two weeks
+  val principle_double_in: Long = 60 * 60
+
+  /** how often to commit uncommitted interest, in millis */
+//  val commit_interest_every: Long = 1000 * 60 * 60 * 24 // every day
+  val commit_interest_every: Long = 1000 * 2 // every day
 }

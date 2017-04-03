@@ -33,7 +33,7 @@ object InternalCommFormats {
     val offer, interest, backflow = Value
   }
 
-  case class UserWallet(owner: UserAccountPointer, transactions: Seq[Transaction],
+  case class UserWallet(owner: UserAccountPointer, transactions: Seq[Transaction], open_transactions: Seq[Transaction],
                         principal: Option[BigDecimal] = None, interest:Option[BigDecimal] = None,
                         uncommitted_interest: Option[BigDecimal] = None)
 
@@ -81,7 +81,7 @@ object InternalCommFormats {
                               to: UserAccountPointer,
                               amount: BigDecimal,
                               timestamp: Instant) extends Transaction {
-    override val transaction_type: TransactionType = TransactionType.backflow
+    override val transaction_type: TransactionType = TransactionType.interest
   }
 
 

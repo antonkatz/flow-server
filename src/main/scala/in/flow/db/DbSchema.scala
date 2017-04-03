@@ -61,7 +61,7 @@ class OffersTable(tag: Tag) extends Table[OfferStorable](tag, "offers") {
   def offerId = column[String]("offer_id", O.PrimaryKey)
   def from = column[String]("from_id")
   def to = column[String]("to_id")
-  def hours = column[BigDecimal]("hours")
+  def hours = column[BigDecimal]("hours", SqlType("numeric"))
   def description = column[String]("description")
   def timestamp_created = column[Timestamp]("timestamp_created", SqlType("timestamp with time zone"))
   /* updates */
@@ -80,7 +80,7 @@ class TransactionsTable(tag: Tag) extends Table[TransactionStorable](tag, "trans
   def parentId = column[Option[String]]("parent_id")
   def from = column[String]("from_id")
   def to = column[String]("to_id")
-  def amount = column[BigDecimal]("amount")
+  def amount = column[BigDecimal]("amount", SqlType("numeric"))
   def timestamp = column[Timestamp]("timestamp_created", SqlType("timestamp with time zone"))
   def offerId = column[Option[String]]("offer_id")
   def transaction_type = column[String]("type")

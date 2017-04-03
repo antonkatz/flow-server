@@ -30,6 +30,7 @@ object Wallet {
   }
 
   /** performs a transaction, checking that the user is allowed to do so
+    * also applies interest before offer completion
     * WARNING, currently does not check didly squat */
   def performTransaction(offer: Offer): FutureErrorFlow[Iterable[Transaction]] = {
     val builder = (parent_id: Option[TransactionPointer], amount: BigDecimal) => {
@@ -40,12 +41,36 @@ object Wallet {
         amount = amount, now, offer = offer)
     }
 
-    Offers.completeOffer(offer) flowWith { _ => evolveTransactions(offer.from, offer.hours, builder) }
+    getWallet(offer.from) flowWith processInterest flowWith {wallet =>
+      Offers.completeOffer(offer) flowWith { _ =>
+        evolveTransactions(wallet, offer.hours, builder) }
+    }
   }
 
-  def processInterest(amount: BigDecimal): FutureErrorFlow[Transaction] = {
-//    InterestTransaction()
-    ???
+  /** finds out how much interest is not committed, creates a transaction for that amount and stores it */
+  private def processInterest(wallet: UserWallet): FutureErrorFlow[UserWallet] = {
+    AccountingRules.getInterestToCommit(wallet).fold({
+      // if no interest to commit
+      Future(Right(wallet)) : FutureErrorFlow[UserWallet]
+    })({amount =>
+      val t_id = generateId(wallet.owner, wallet.owner, amount)
+      val t = InterestTransaction(t_id, None, from = wallet.owner, to = wallet.owner, amount, getNow)
+      store(t) flowRight {t => updateWallet(wallet, t)
+        // modifying the wallet to reflect this change
+      }
+    })
+  }
+
+  /** All updates MUST use this method
+    * does all the proper routines when adding a transaction to an existing wallet */
+  def updateWallet(w: UserWallet, t: Transaction): UserWallet = t match {
+    case t: InterestTransaction =>
+      // todo. instead use loadauxwalletinfo
+      val upd_int = w.interest.map(_ + t.amount)
+      val upd_trs = w.transactions :+ t
+      val upd_open_trs = findOpenTransactions(w.owner, upd_trs)
+      w.copy(uncommitted_interest = None, interest = upd_int, transactions = upd_trs,
+                          open_transactions = upd_open_trs)
   }
 
   private def generateId(from: UserAccountPointer, to: UserAccountPointer, amount: BigDecimal) = {
@@ -59,7 +84,7 @@ object Wallet {
     * must not be used for interest
     * checks that the amount is more than 0
     * @param transBuilder a functions taking `parent_id` and `amount`, returning a [[Transaction]] */
-  private[users] def evolveTransactions(from: UserAccountPointer, amount: BigDecimal,
+  private[users] def evolveTransactions(wallet: UserWallet, amount: BigDecimal,
                                         transBuilder: (Option[TransactionPointer], BigDecimal) => Transaction):
   FutureErrorFlow[Iterable[Transaction]] = {
     if (amount < 0) {
@@ -67,47 +92,49 @@ object Wallet {
       return Future(Left(InvalidInputError("you cannot transfer negative amounts")))
     }
 
-    getWallet(from) flowRight { wallet =>
-      // childless, sorted, oldest first
-      var open_transactions = findOpenTransactions(wallet).sortBy(_.timestamp)
-      var remaining_balance = amount
-      var new_transactions = Seq[Transaction]()
+    val from = wallet.owner
+    // childless, sorted, oldest first
+    var open_transactions = getOpenTransactions(wallet).sortBy(_.timestamp)
+    var remaining_balance = amount
+    var new_transactions = Seq[Transaction]()
 
-      // splitting existing transactions into new transactions
-      while (remaining_balance > 0) {
-        open_transactions.headOption match {
-          case Some(open_trans) =>
-            val amount_of_new = if (open_trans.amount < remaining_balance) open_trans.amount else remaining_balance
-            remaining_balance -= open_trans.amount
+    // splitting existing transactions into new transactions
+    while (remaining_balance > 0) {
+      open_transactions.headOption match {
+        case Some(open_trans) =>
+          val amount_of_new = if (open_trans.amount < remaining_balance) open_trans.amount else remaining_balance
+          remaining_balance -= open_trans.amount
 
-            // in all cases where there is a remaining balance and open transactions
-            new_transactions :+= transBuilder(Option(open_trans), amount_of_new)
-            // old transaction is larger than the remaining balance
-            if (amount_of_new < open_trans.amount) {
-              // this code should be executed at most once
-              val backflow_id = generateId(from, from, -remaining_balance)
-              new_transactions :+= BackflowTransaction(backflow_id, Option(open_trans), from, from,
-                -1 * remaining_balance, getNow)
-            }
+          // in all cases where there is a remaining balance and open transactions
+          new_transactions :+= transBuilder(Option(open_trans), amount_of_new)
+          // old transaction is larger than the remaining balance
+          if (amount_of_new < open_trans.amount) {
+            // this code should be executed at most once
+            val backflow_id = generateId(from, from, -remaining_balance)
+            new_transactions :+= BackflowTransaction(backflow_id, Option(open_trans), from, from,
+              -1 * remaining_balance, getNow)
+          }
 
-            open_transactions = open_transactions.tail
-          case _ =>
-            // case ran out of open transactions
-            new_transactions :+= transBuilder(None, remaining_balance)
-            remaining_balance = 0
-        }
+          open_transactions = open_transactions.tail
+        case _ =>
+          // case ran out of open transactions
+          new_transactions :+= transBuilder(None, remaining_balance)
+          remaining_balance = 0
       }
+    }
 
-      new_transactions
-    } flowWith { trs => store(trs) }
+    store(new_transactions)
   }
 
   /** @return incoming transactions from wallet that do not have any children */
-  def findOpenTransactions(wallet: UserWallet): Seq[Transaction] = {
-    val parent_ids = wallet.transactions collect {
+  def getOpenTransactions(wallet: UserWallet): Seq[Transaction] = wallet.open_transactions
+
+  /** @return incoming transactions from wallet that do not have any children */
+  private def findOpenTransactions(owner: UserAccountPointer, transactions: Seq[Transaction]): Seq[Transaction] = {
+    val parent_ids = transactions collect {
       case p if p.parent isDefined => p.parent.get.transaction_id
     }
-    wallet.transactions filter { t => !(parent_ids contains t.transaction_id) & (t.to == wallet.owner) }
+    transactions filter { t => !(parent_ids contains t.transaction_id) & (t.to == owner) }
   }
 
   /** @see [[AccountingRules.loadPrincipal()]] [[AccountingRules.loadInterest()]] */
@@ -128,7 +155,8 @@ object Wallet {
       if (trs.exists(_.isEmpty)) {
         Left(DatabaseError("we messed up, sorry"))
       } else {
-        Right(UserWallet(user, trs.flatten))
+        val trsf = trs.flatten
+        Right(UserWallet(user, trsf, open_transactions = findOpenTransactions(user, trsf)))
       }
     } recover {
       case e => logger.error(s"Failed during database access when getting wallet balance for user ${user.user_id}: " +
