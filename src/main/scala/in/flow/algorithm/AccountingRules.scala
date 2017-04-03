@@ -12,10 +12,12 @@ object AccountingRules {
   def getRelativeAmount(u: UserAccountPointer, t: Transaction): BigDecimal =
     if (u == t.from) t.amount * -1 else t.amount
 
-  /** @return sum of all user transactions that are not interest transactions; if the balance is negative, returns 0 */
+  /** sums up all non-interest transactions in a wallet, that have a parent
+    * @return sum of all user transactions that are not interest transactions; if the balance is negative, returns 0,
+    *         because it does not account for transactions with no parent */
   def loadPrincipal(wallet: UserWallet): UserWallet = {
-    var p = getSumOfType(wallet, (t) => !t.isInstanceOf[InterestTransaction])
-    if (p < 0) p = 0
+    val with_parent = wallet.transactions.filter(_.parent.isDefined)
+    val p = getSumOfType(with_parent, wallet.owner, (t) => !t.isInstanceOf[InterestTransaction])
     wallet.copy(principal = Option(p))
   }
 
@@ -37,8 +39,13 @@ object AccountingRules {
   }
 
   private def getSumOfType(wallet: UserWallet, typeCheck: (Transaction) => Boolean): BigDecimal = {
-    val raf = (t: Transaction) => AccountingRules.getRelativeAmount(wallet.owner, t)
-    wallet.transactions.filter(typeCheck).map(raf).sum
+    getSumOfType(wallet.transactions, wallet.owner, typeCheck)
+  }
+
+  private def getSumOfType(transactions: Seq[Transaction], owner: UserAccountPointer,
+                           typeCheck: (Transaction) => Boolean): BigDecimal = {
+    val raf = (t: Transaction) => AccountingRules.getRelativeAmount(owner, t)
+    transactions.filter(typeCheck).map(raf).sum
   }
 
   /** @param time_unit in seconds*/
