@@ -2,6 +2,7 @@ package in
 
 import java.time.{ZoneId, ZonedDateTime}
 
+import in.flow.utils.LoggerSetup
 import org.bouncycastle.jcajce.provider.digest.SHA3.DigestSHA3
 import scribe.{Level, LogHandler, Logger}
 import scribe.formatter.FormatterBuilder
@@ -31,7 +32,7 @@ package object flow {
   Logger.root.clearHandlers()
   Logger.root.addHandler(LogHandler(formatter = lf, level = Level.Debug))
 
-  implicit val getLogger: (String) => Logger = { (name: String) => Logger.byName(name)}
+  implicit val getLogger: (String) => Logger = LoggerSetup.getLogger
 
   /* error flow */
 
