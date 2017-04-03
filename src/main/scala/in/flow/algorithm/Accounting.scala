@@ -12,9 +12,11 @@ object Accounting {
   def getRelativeAmount(u: UserAccountPointer, t: Transaction): BigDecimal =
     if (u == t.from) t.amount * -1 else t.amount
 
-  /** @return sum of all user transactions that are not interest transactions */
+  /** @return sum of all user transactions that are not interest transactions; if the balance is negative, returns 0 */
   def loadPrincipal(wallet: UserWallet): UserWallet = {
-    wallet.copy(principal = Option(getSumOfType(wallet, (t) => !t.isInstanceOf[InterestTransaction])))
+    var p = getSumOfType(wallet, (t) => !t.isInstanceOf[InterestTransaction])
+    if (p < 0) p = 0
+    wallet.copy(principal = Option(p))
   }
 
   def loadInterest(wallet: UserWallet): UserWallet = {
