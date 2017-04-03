@@ -1,23 +1,20 @@
 package in.flow.users
 
 import java.sql.Timestamp
-import java.time.{LocalDateTime, ZonedDateTime}
 import java.util.Base64
 
 import in.flow.algorithm.AlgorithmSettings
-import in.flow.commformats.ExternalCommFormats.{OfferRequest, OfferResponse, OffersResponse}
+import in.flow.commformats.ExternalCommFormats.OfferRequest
 import in.flow.commformats.InternalCommFormats.{Offer, OfferPointer}
-import in.flow.users.UserAccount
 import in.flow.db.OfferStatusType.OfferStatusType
 import in.flow.db.{Db, DbSchema, OfferStatusType, OfferStorable}
 import in.flow.{DatabaseError, FutureErrorFlow, InvalidInputError, UnknownError, WithErrorFlow, getLogger, getNow}
 import org.bouncycastle.jcajce.provider.digest.SHA3.DigestSHA3
 import scribe._
-
-import scala.concurrent.Future
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 
 /**
@@ -26,19 +23,22 @@ import scala.concurrent.ExecutionContext.Implicits.global
   */
 object Offers {
   private val logger: Logger = "Offers"
+
   private def getSha = new DigestSHA3(256)
 
   def createOffer(request: OfferRequest, creator: UserAccount): Future[WithErrorFlow[Offer]] = {
-    Future(cleanAndValidate(request)) flowWith { r => checkPermissions(r, creator)} flowWith { r =>
-      storeOffer(r, creator) flowRight { storableToOffer } recover {
+    Future(cleanAndValidate(request)) flowWith { r => checkPermissions(r, creator) } flowWith { r =>
+      storeOffer(r, creator) flowRight {
+        storableToOffer
+      } recover {
         case e => logger.error(s"Failed to create an offer: ${e.getMessage}")
           Left(UnknownError())
       }
     }
   }
 
-  /** returns all pending (open) offers to the given user */
-  def getPendingOffersTo(user: UserAccount): Future[WithErrorFlow[Iterable[Offer]]] = {
+  /** returns all pending (open) offers to and from the given user */
+  def getPendingOffers(user: UserAccount): Future[WithErrorFlow[Iterable[Offer]]] = {
     retrieveOffers(user, OfferStatusType.open) flowRight (_ map storableToOffer)
   }
 
@@ -53,11 +53,11 @@ object Offers {
   }
 
   def completeOffer(offer: Offer): FutureErrorFlow[Offer] = {
-    changeOfferStatus(offer.offer_id, OfferStatusType.completed) flowRight(_ => offer)
+    changeOfferStatus(offer.offer_id, OfferStatusType.completed) flowRight (_ => offer)
   }
 
   def rejectOffer(offer: Offer): FutureErrorFlow[Offer] = {
-    changeOfferStatus(offer.offer_id, OfferStatusType.rejected) flowRight(_ => offer)
+    changeOfferStatus(offer.offer_id, OfferStatusType.rejected) flowRight (_ => offer)
   }
 
   // todo must check that the user has authority to do so
@@ -65,18 +65,20 @@ object Offers {
     * when a transaction happens on an offer, it must be marked completed */
   private def changeOfferStatus(offer_id: String, status: OfferStatusType): FutureErrorFlow[String] = {
     val now = Timestamp.from(getNow)
-    val q = for {o <- DbSchema.offers if o.offerId === offer_id } yield (o.status, o.timestamp_updated)
-    Db.run(q.update(status.toString, now)) map {_ => Right(offer_id)} recover {
+    val q = for {o <- DbSchema.offers if o.offerId === offer_id} yield (o.status, o.timestamp_updated)
+    Db.run(q.update(status.toString, now)) map { _ => Right(offer_id) } recover {
       case e => logger.error(s"Failed to update offer status: ${e.getMessage}")
         Left(DatabaseError("we couldn't update offer info, sorry"))
     }
   }
 
-  /** @return all non-completed or non-rejected offers (in other words pending?) */
+  /** @return all non-completed or non-rejected offers (in other words pending?) to and from user */
   private def retrieveOffers(u: UserAccount, status: OfferStatusType): Future[WithErrorFlow[Iterable[OfferStorable]]]
   = {
-    Db.run(DbSchema.offers.filter(dbo => dbo.to === u.user_id && dbo.status === status.toString).result) map {
-      Right(_)} recover {
+    Db.run(DbSchema.offers.filter(dbo => (dbo.to === u.user_id || dbo.from === u.user_id) && dbo.status === status
+      .toString).result) map {
+      Right(_)
+    } recover {
       case e => logger.error(s"Failed to retrieve an offer: ${e.getMessage}")
         Left(DatabaseError("we messed up loading offers to you, please report this error"))
     }
@@ -105,15 +107,17 @@ object Offers {
 
   /** checks that the two users are indeed connected */
   private def checkPermissions(r: OfferRequest, creator: UserAccount): Future[WithErrorFlow[OfferRequest]] = {
-    Users.loadUserConnections(creator) flatMap {u =>
-      val has_connection = Future{u.connections exists(_._1.user_id == r.to_user_id)}
+    Users.loadUserConnections(creator) flatMap { u =>
+      val has_connection = Future {
+        u.connections exists (_._1.user_id == r.to_user_id)
+      }
       // if the connection is not direct, check all
       has_connection collect {
-        case false => Connections.getVisibleConnections(u) map {cons =>
-            val flat_cons = cons.flatten
-            if (flat_cons.exists(_.user_id == r.to_user_id)) Right(r)
-            else Left(InvalidInputError("umm... you don't know this person"))
-          }
+        case false => Connections.getVisibleConnections(u) map { cons =>
+          val flat_cons = cons.flatten
+          if (flat_cons.exists(_.user_id == r.to_user_id)) Right(r)
+          else Left(InvalidInputError("umm... you don't know this person"))
+        }
 
         case true => Future(Right(r))
       } flatten

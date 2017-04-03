@@ -87,7 +87,7 @@ trait InnerRoutes extends JsonSupport {
       } ~ path("get") {
         logger.debug(s"getting offers for ${Security.getUserId.getOrElse("[missing id]")}")
         val user = Security.getOrLoadUser
-        val res: Future[WithErrorFlow[Iterable[Offer]]] = user map { u => Offers.getPendingOffersTo(u) } getOrElse {
+        val res: Future[WithErrorFlow[Iterable[Offer]]] = user map { u => Offers.getPendingOffers(u) } getOrElse {
           Future {
             Left(MissingUserError())
           }

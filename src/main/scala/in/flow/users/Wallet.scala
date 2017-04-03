@@ -11,9 +11,9 @@ import scribe.Logger
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.util.Random
 
-//todo. the current transaction process must be reimplemented to resemble BitCoin
 /**
   * Responsible for all transactions interactions, balances, and financial interest operations
   *
@@ -57,10 +57,16 @@ object Wallet {
 
   /** takes inflowing transactions of the `from` user, and closes them up as a transfer to the `to` user
     * must not be used for interest
+    * checks that the amount is more than 0
     * @param transBuilder a functions taking `parent_id` and `amount`, returning a [[Transaction]] */
   private[users] def evolveTransactions(from: UserAccountPointer, amount: BigDecimal,
                                         transBuilder: (Option[TransactionPointer], BigDecimal) => Transaction):
   FutureErrorFlow[Iterable[Transaction]] = {
+    if (amount < 0) {
+      logger.error("Transaction attempt of negative amount")
+      return Future(Left(InvalidInputError("you cannot transfer negative amounts")))
+    }
+
     getWallet(from) flowRight { wallet =>
       // childless, sorted, oldest first
       var open_transactions = findOpenTransactions(wallet).sortBy(_.timestamp)
