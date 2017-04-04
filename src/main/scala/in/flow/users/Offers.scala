@@ -60,6 +60,10 @@ object Offers {
     changeOfferStatus(offer.offer_id, OfferStatusType.rejected) flowRight (_ => offer)
   }
 
+  def cancelOffer(offer: Offer): FutureErrorFlow[Offer] = {
+    changeOfferStatus(offer.offer_id, OfferStatusType.cancelled) flowRight (_ => offer)
+  }
+
   // todo must check that the user has authority to do so
   /**
     * when a transaction happens on an offer, it must be marked completed */

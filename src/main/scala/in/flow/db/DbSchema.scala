@@ -129,7 +129,7 @@ object OfferStorable {
 
 object OfferStatusType extends Enumeration {
   type OfferStatusType = Value
-  val open, completed, rejected = Value
+  val open, completed, rejected, cancelled = Value
 }
 
 /* transactions / wallet */

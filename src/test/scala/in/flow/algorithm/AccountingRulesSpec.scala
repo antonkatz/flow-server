@@ -44,6 +44,7 @@ class AccountingRulesSpec extends WordSpec with Matchers with BeforeAndAfterAll 
         w1.right.get.uncommitted_interest should be (Some(0))
         val w2_ui: BigDecimal = w2.right.get.uncommitted_interest.get
         assert(w2_ui > 0)
+        assert(w2.right.get.principal.get == amount)
         assert(trs.right.get.size == 1)
         for_cleanup ++= trs.right.get
       }

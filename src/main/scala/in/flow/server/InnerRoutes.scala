@@ -113,6 +113,15 @@ trait InnerRoutes extends JsonSupport {
           }
           complete(resp)
         }
+      } ~ path("cancel") {
+        sd.sentity(as[OfferActionRequest], s) { req =>
+          logger.debug(s"canceling offer ${req.offer_id} for ${Security.getUserId.getOrElse("[missing id]")}")
+          val offer = Offers.retrieveOffer(req)
+          val resp: Future[(StatusCode, FlowResponse)] = offer flowWith Offers.cancelOffer map { r =>
+            getStatusCode(r) -> r.map(offerToResponse)
+          }
+          complete(resp)
+        }
       }
     } ~ pathPrefix("wallet") {
       path("get") {

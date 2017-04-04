@@ -4,7 +4,7 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import in.flow.commformats.ExternalCommFormats.ConnectionsResponse
 import in.flow.commformats.ExternalCommFormats._
 import in.flow.users.UserAccount
-import in.flow.{FlowError, WithErrorFlow}
+import in.flow.{FlowError, UnknownError, WithErrorFlow}
 import spray.json._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -65,17 +65,20 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     FlowResponse(what map { w => t(w) })
   }
 
-  protected def connectionsToFlowResponse(cons_f: Future[Seq[Set[UserAccount]]]): Future[FlowResponse] = {
+  /*todo. this needs an update */
+  protected def connectionsToFlowResponse(cons_f: Future[Seq[Set[UserAccount]]]): Future[(Int, FlowResponse)] = {
     cons_f map { cons =>
       val fof = cons.tail map connectionsToRepresentations
       val friends = connectionsToRepresentations(cons.head)
       val r = ConnectionsResponse(friends, fof)
       val json: JsValue = r.toJson
-      FlowResponse.success(json)
+      200 -> FlowResponse.success(json)
     } recover {
       case _: NoSuchElementException =>
         val emptyCons = ConnectionsResponse(Seq(), Seq())
-        FlowResponse.success(connResp write emptyCons)
+        200 -> FlowResponse.success(connResp write emptyCons)
+      case _: Throwable =>
+        500 -> FlowResponse.failure(UnknownError())
     }
   }
 
