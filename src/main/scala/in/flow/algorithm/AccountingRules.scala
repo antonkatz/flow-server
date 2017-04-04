@@ -12,11 +12,11 @@ object AccountingRules {
   def getRelativeAmount(u: UserAccountPointer, t: Transaction): BigDecimal =
     if (u == t.from && u != t.to) t.amount * -1 else t.amount
 
-  /** sums up all open non-interest transactions in a wallet, that have a parent
+  /** sums up all open non-interest transactions in a wallet, (that have a parent and are not to the owner)
     * @return sum of all user transactions that are not interest transactions; if the balance is negative, returns 0,
     *         because it does not account for transactions with no parent */
   def loadPrincipal(wallet: UserWallet): UserWallet = {
-    val with_parent = Wallet.getOpenTransactions(wallet).filter(_.parent.isDefined)
+    val with_parent = Wallet.getOpenTransactions(wallet).filter(t => t.parent.isDefined | t.to == wallet.owner )
     val p = getSumOfType(with_parent, wallet.owner, (t) => !t.isInstanceOf[InterestTransaction])
     wallet.copy(principal = Option(p))
   }
