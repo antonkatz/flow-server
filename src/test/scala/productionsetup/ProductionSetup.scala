@@ -22,24 +22,23 @@ class ProductionSetup extends WordSpec {
   "Production setup" when {
 
     "creating antons account" should {
-      val antons_key =
-        """|-----BEGIN PUBLIC KEY-----
-           |MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA38extTmtQfWMbh+xgM9f
-           |RYrT6/hYoZB2yz0AyXVkqaTNMhrlpgUkc/AKEK3Ai5Z4oCpI6+hs8zbdeRDT2q3H
-           |Bh/9aWQ4J/KPFe5npPYNKfn0H9E9vwLVv6cHkkOHkpJ5CAYa9JYnWgMDrTSBA9G9
-           |g27jjTsw4stKFVRILvNWUYyBXazmcUI42AtbgV31r2bCBZd7b9muhQzNsVPrF7EC
-           |fazvOMZOTtdblWbbzF2w8/K8r30C6kaN3WH6kfETjV8UifxLZyrwNP+oPqj336am
-           |hKGIDm8F98gE9+3EZgEBNm7zf2o3kmwl7cfmjOg+1kblkdFXt8eAvOyLHmLgn84H
-           |PxgCaLi3bYwFcZJ9eA8voZFQOj1WaG+Njh2K/c71iUNRuZlYTDgf9B4HJZOLT9Jm
-           |HuKkGuARuwc5EC892o44IuQ7aDgFUd9t33mmXPLrEzWzQA+0gpIGhvuxNLiW7M+i
-           |NkZnpaa9bvct9WFGCGyjuQbO4LSvO/XszzjgA5c0tgMQD0715niXkxl12fuvQKrh
-           |7YF2E+V7KZhEK5KaQ2RAg/4a0EzKyDHYSfIyQGA1qqkq47TP5U63MPZWzJvH92Mc
-           |WxjFIkUlruQW3/9qE5dgCWv4XbaReTc8xGgUJ0K/HK3H6mdjxAfyl0YsQtbBxOHi
-           |IhS/dU0xsBE1UkLXHJgOm+8CAwEAAQ==
-           |-----END PUBLIC KEY-----
-           |""".stripMargin
       var anton: UserAccount = null
       "generate antons account" in {
+        val antons_key =
+          """-----BEGIN PUBLIC KEY-----
+            |MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAzGgC5J1USoPOwDZ7F63m
+            |MNnB8Sdfjwcy9/gfBPGj6E87HPoZkfMco1edYyXptZKEguJuEFxyP+8cSjwf6Igf
+            |O46wEzta2wrCFe75LFVeLUsCl2ekWck42pEjO+58pKLPgs73ynwr/I/SZCOoyyzo
+            |DnFuHC4zNfZ3d9IXVsRRn9YT8Tdvq6R/J2qjglW747G9+7txkXEZzoi89aDK9Ql0
+            |oiRtl61jMGGVyVoZgaIq5409xZ3Cw2/gejgx6Zp1RWqR3B1VOj6DgzVCJpKVW4QA
+            |0eeHJbDkpGzIsHeYzlEJKy02JjJq5zv2ksOJ4DiLOp75KyHkMcVdXksFDo3y0Bio
+            |zSwTArgPtZZazDdviiSOFN+c1+1ALTWEXCgakpg+xUhd5lbGhBb53g/Jiwgey2XL
+            |yRML4hVk023HtfF+5EdZWvBc1VzAxznZ5HCl3P3QkxsGJk/dMEub4Vpet5Tnr+QW
+            |hVBdp/pwXK9AAYl+Oc+1OgcLtC3AjMa9esAEtZ5kz+cimSkr1XCTuqRvE2FwlXgr
+            |umfIOkVBgwdPuXcSegUOAHLgHWEzevUf10dIzhp37BO4ltuLyTmwILqe8yJwJaHF
+            |xmtjz0lBfv+cQxdGbRoHpTQ5LfcjVWTjOtswK2AaTc/t2DUX4GF+kdfcrdIoPDfD
+            |3c5bwQwMWzDFWos8BROgiH8CAwEAAQ==
+            |-----END PUBLIC KEY-----""".stripMargin
         val key = Encryption.parsePublicKey(antons_key)
         key foreach {k =>
           Users.getUserId(k) foreach {id =>
@@ -60,11 +59,13 @@ class ProductionSetup extends WordSpec {
         }
       }
 
-      "generate some invite codes from anton" in {
+      "generate some invite codes from some user" in {
         println()
+//        val from_user = Await.result(Users.getUser(anton.user_id), Duration.Inf).get
+        val from_user = Await.result(Users.getUser("FQ6ENiykQ1k79iagge1LN7kQCf0FPcdhQZjbwnW/Dx8="), Duration.Inf).get
         for (i <- 1 to 20) {
-          val i = Registrar.createInvitation(anton)
-          println(i.right.get.code)
+          val inv = Registrar.createInvitation(from_user)
+          println(inv.right.get.code)
         }
       }
     }
