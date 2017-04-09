@@ -54,10 +54,12 @@ class WalletSpec extends WordSpec with Matchers {
         val trsf = Offers.createOffer(oreq, u1) flowWith Wallet.performTransaction
         val trs = Await.result(trsf, Duration.Inf)
 
+        val w2 = Await.result(Wallet.getWallet(u2) flowRight Wallet.loadAuxWalletInfo, Duration.Inf).right.get
+
         trs.isInstanceOf[Right[_,_]] should be(true)
-        trs.right.get should have size(1)
-        trs.right.get.exists(t => t.amount == amount && t.parent.isEmpty) should be(true)
-        trs.right.get.filterNot(_.isInstanceOf[BackflowTransaction]).map(_.amount).sum should be(amount)
+//        trs.right.get should have size(1)
+        trs.right.get.exists(t => t.parent.isEmpty) should be(true)
+        assert(w2.balance.get > -20 & w2.balance.get < -19.9 )
 
         for_cleanup ++= trs.right.get
       }
@@ -70,13 +72,18 @@ class WalletSpec extends WordSpec with Matchers {
 
         for_cleanup ++= trs.right.get
 
+        val w2 = Await.result(Wallet.getWallet(u2) flowRight Wallet.loadAuxWalletInfo, Duration.Inf).right.get
+        assert((w2.balance.get) > -17 & (w2.balance.get) < -16.9 )
+        val w1 = Await.result(Wallet.getWallet(u1) flowRight Wallet.loadAuxWalletInfo, Duration.Inf).right.get
+        assert((w1.balance.get) < 17 & (w1.balance.get) > 16.9 )
+
         trs.isInstanceOf[Right[_,_]] should be(true)
-        trs.right.get should have size(2)
+        trs.right.get should have size(1)
         trs.right.get.exists(t => t.parent.isEmpty) should be(false)
-        trs.right.get.forall(_.parent.get.transaction_id == firstPrimordial.transaction_id)
-        trs.right.get.exists(t => t.from == u2 && t.to == u2) should be(true)
-        trs.right.get.exists(t => t.from == u2 && t.to == u1) should be(true)
-        trs.right.get.filterNot(_.isInstanceOf[BackflowTransaction]).map(_.amount).sum should be(amount)
+//        trs.right.get.forall(_.parent.get.transaction_id == firstPrimordial.transaction_id)
+        trs.right.get.exists(t => t.from == u2 && t.to == u2) should be(false)
+        trs.right.get.exists(t => t.from == u1 && t.to == u2) should be(false)
+//        trs.right.get.filterNot(_.isInstanceOf[BackflowTransaction]).map(_.amount).sum should be(amount)
       }
 
       "close up two open transactions and create a primordial one" in {
@@ -92,8 +99,9 @@ class WalletSpec extends WordSpec with Matchers {
         trs.right.get.count(t => t.parent.isEmpty) should be(1)
         trs.right.get.count(t => t.parent.isDefined) should be(2)
         trs.right.get.exists(t => t.from == u2 && t.to == u2) should be(false)
-        trs.right.get.count(t => t.from == u2 && t.to == u1) should be(3)
-        trs.right.get.filterNot(_.isInstanceOf[BackflowTransaction]).map(_.amount).sum should be(amount)
+        trs.right.get.count(t => t.from == u2 && t.to == u1) should be(2)
+        trs.right.get.count(t => t.from == u1 && t.to == u2) should be(1)
+        trs.right.get.filter(t => t.from == u2 && t.to == u1).forall(_.amount == 0) should be(true)
       }
 
       "close up three open transactions and backflow one" in {

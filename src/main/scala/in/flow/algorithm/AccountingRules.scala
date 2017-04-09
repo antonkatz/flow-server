@@ -16,7 +16,7 @@ object AccountingRules {
   /** sums up all open non-interest transactions in a wallet, (that have a parent and are not to the owner)
     * @return sum of all user transactions that are not interest transactions; if the balance is negative, returns 0,
     *         because it does not account for transactions with no parent */
-  def loadPrincipal(wallet: UserWallet): UserWallet = {
+  def loadBalance(wallet: UserWallet): UserWallet = {
     val open = Wallet.getOpenTransactions(wallet)
     val p = getSumOfType(open, wallet.owner, (t) => !t.isInstanceOf[InterestTransaction])
 //    val p = getSumOfType(wallet.transactions, wallet.owner,

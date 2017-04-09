@@ -30,7 +30,7 @@ object InternalCommFormats {
 
   object TransactionType extends Enumeration {
     type TransactionType = Value
-    val offer, interest, backflow = Value
+    val offer, interest, backflow, regular = Value
   }
 
   case class UserWallet(owner: UserAccountPointer, transactions: Seq[Transaction], open_transactions: Seq[Transaction],
@@ -73,6 +73,15 @@ object InternalCommFormats {
                               amount: BigDecimal,
                               timestamp: Instant) extends Transaction {
     override val transaction_type: TransactionType = TransactionType.backflow
+  }
+
+  case class RegularTransaction(transaction_id: String,
+                              parent: Option[TransactionPointer],
+                              from: UserAccountPointer,
+                              to: UserAccountPointer,
+                              amount: BigDecimal,
+                              timestamp: Instant) extends Transaction {
+    override val transaction_type: TransactionType = TransactionType.regular
   }
 
   case class InterestTransaction(transaction_id: String,

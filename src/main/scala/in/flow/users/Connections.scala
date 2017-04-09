@@ -104,11 +104,11 @@ object Connections {
       val this_level = of flatMap {u => u.connections map {_._1}} diff ffs
 
       val ll = levels_left - 1
+      val buffer = collection_function(collection_buffer, this_level)
       if (ll > 0 && this_level.nonEmpty) {
-        val buffer = collection_function(collection_buffer, this_level)
         getVisibleConnections(this_level, collection_function, buffer, ll, ffs)
       } else {
-        Future(collection_buffer)
+        Future(buffer)
       }
     })
   }

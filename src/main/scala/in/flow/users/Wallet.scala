@@ -33,17 +33,17 @@ object Wallet {
     * also applies interest before offer completion
     * WARNING, currently does not check didly squat */
   def performTransaction(offer: Offer): FutureErrorFlow[Iterable[Transaction]] = {
-    val builder = (parent_id: Option[TransactionPointer], amount: BigDecimal) => {
-      val now = getNow
-      val t_id = generateId(offer.from, offer.to, offer.hours)
-
-      OfferTransaction(t_id, parent_id, from = offer.to, to = offer.from,
-        amount = amount, now, offer = offer)
-    }
+//    val builder = (parent_id: Option[TransactionPointer], from: UserAccountPointer, amount: BigDecimal) => {
+//      val now = getNow
+//      val t_id = generateId(offer.from, offer.to, offer.hours)
+//
+//      OfferTransaction(t_id, parent_id, from = from, to = offer.from,
+//        amount = amount, now, offer = offer)
+//    }
 
     getWallet(offer.to) flowWith processInterest flowWith {wallet =>
       Offers.completeOffer(offer) flowWith { _ =>
-        evolveTransactions(wallet, offer.hours, builder) }
+        evolveTransactions(wallet, offer.hours, offer.from) }
     }
   }
 
@@ -88,10 +88,8 @@ object Wallet {
 
   /** takes inflowing transactions of the `from` user, and closes them up as a transfer to the `to` user
     * must not be used for interest
-    * checks that the amount is more than 0
-    * @param transBuilder a functions taking `parent_id` and `amount`, returning a [[Transaction]] */
-  private[users] def evolveTransactions(wallet: UserWallet, amount: BigDecimal,
-                                        transBuilder: (Option[TransactionPointer], BigDecimal) => Transaction):
+    * checks that the amount is more than 0 */
+  private[users] def evolveTransactions(wallet: UserWallet, amount: BigDecimal, to: UserAccountPointer):
   FutureErrorFlow[Iterable[Transaction]] = {
     if (amount < 0) {
       logger.error("Transaction attempt of negative amount")
@@ -110,18 +108,29 @@ object Wallet {
     while (remaining_balance > 0) {
       evolvable.headOption match {
         case Some(open_trans) =>
-          val amount_of_new = if (open_trans.amount < remaining_balance) open_trans.amount else remaining_balance
+          val shrunk_coin_size = if (open_trans.amount < remaining_balance) {
+            BigDecimal(0)
+          } else {
+            open_trans.amount - remaining_balance
+          }
           remaining_balance -= open_trans.amount
 
-          // this code should be executed at most once
-          val backflow_id = generateId(open_trans.from, open_trans.to, -remaining_balance)
+          val backflow_id = generateId(open_trans.from, open_trans.to, shrunk_coin_size)
           new_transactions :+= BackflowTransaction(backflow_id, Option(open_trans), from = open_trans.from,
-            to = open_trans.to, -1 * remaining_balance, getNow)
+            to = open_trans.to, shrunk_coin_size, getNow)
+
+          if (to != open_trans.from) {
+            val transferred_coin_size = open_trans.amount - shrunk_coin_size
+            val reg_id = generateId(open_trans.from, to, transferred_coin_size)
+            new_transactions :+= RegularTransaction(reg_id, Option(open_trans), from = open_trans.from,
+            to = to, transferred_coin_size, getNow)
+          }
 
           evolvable = evolvable.tail
         case _ =>
+          val id = generateId(from, to, -remaining_balance)
           // case ran out of open transactions
-          new_transactions :+= transBuilder(None, remaining_balance)
+          new_transactions :+= RegularTransaction(id, None, from=from, to=to, remaining_balance, getNow)
           remaining_balance = 0
       }
     }
@@ -141,9 +150,9 @@ object Wallet {
 //    transactions filter { t => !(parent_ids contains t.transaction_id) | (t.parent.isEmpty & t.from == owner)}
   }
 
-  /** @see [[AccountingRules.loadPrincipal()]] [[AccountingRules.loadInterest()]] */
+  /** @see [[AccountingRules.loadBalance()]] [[AccountingRules.loadInterest()]] */
   def loadAuxWalletInfo(wallet: UserWallet): UserWallet = {
-    var w = AccountingRules.loadPrincipal(wallet)
+    var w = AccountingRules.loadBalance(wallet)
     w = AccountingRules.loadInterest(w)
     AccountingRules.loadUncommitedInterest(w)
   }
@@ -214,6 +223,8 @@ object Wallet {
         OfferTransaction(t.transaction_id, parent, from = from, to = to, t.amount, t.timestamp.toInstant, offer)
       }
       case tt if tt == TransactionType.backflow =>
+        Option(BackflowTransaction(t.transaction_id, parent, from = from, to = to, t.amount, t.timestamp.toInstant))
+      case tt if tt == TransactionType.regular =>
         Option(BackflowTransaction(t.transaction_id, parent, from = from, to = to, t.amount, t.timestamp.toInstant))
       case tt if tt == TransactionType.interest =>
         Option(InterestTransaction(t.transaction_id, parent, from = from, to = to, t.amount, t.timestamp.toInstant))
