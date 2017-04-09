@@ -20,6 +20,8 @@ trait UserAccountPointer{
     case o: UserAccountPointer => o.user_id == this.user_id
     case _ => false
   }
+
+  override def toString: String = user_id
 }
 
 object UserAccountPointer {

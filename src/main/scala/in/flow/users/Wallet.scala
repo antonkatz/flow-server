@@ -37,11 +37,11 @@ object Wallet {
       val now = getNow
       val t_id = generateId(offer.from, offer.to, offer.hours)
 
-      OfferTransaction(t_id, parent_id, from = offer.from, to = offer.to,
+      OfferTransaction(t_id, parent_id, from = offer.to, to = offer.from,
         amount = amount, now, offer = offer)
     }
 
-    getWallet(offer.from) flowWith processInterest flowWith {wallet =>
+    getWallet(offer.to) flowWith processInterest flowWith {wallet =>
       Offers.completeOffer(offer) flowWith { _ =>
         evolveTransactions(wallet, offer.hours, builder) }
     }
@@ -52,28 +52,34 @@ object Wallet {
     AccountingRules.getInterestToCommit(wallet).fold({
       // if no interest to commit
       Future(Right(wallet)) : FutureErrorFlow[UserWallet]
-    })({amount =>
-      val t_id = generateId(wallet.owner, wallet.owner, amount)
-      val t = InterestTransaction(t_id, None, from = wallet.owner, to = wallet.owner, amount, getNow)
-      store(t) flowRight {t => updateWallet(wallet, t)
+    })({interest_trs =>
+      // when interest flows out, the parent transaction needs to be closed up and split, so as to keep providing
+      // the interest to the person who sent the parent transaction
+      val backflows = interest_trs map {it =>
+        val pt = wallet.transactions.find(_.transaction_id == it.parent.get.transaction_id).get
+        val backflow_id = generateId(pt.from, pt.to, pt.amount)
+        val a = pt.amount - it.amount
+        BackflowTransaction(backflow_id, parent = Option(pt), from = pt.from, to = pt.to, a, getNow)
+      }
+      store(interest_trs ++ backflows) flowRight {trs => updateWallet(wallet, trs)
         // modifying the wallet to reflect this change
       }
+
     })
   }
 
   /** All updates MUST use this method
     * does all the proper routines when adding a transaction to an existing wallet */
-  def updateWallet(w: UserWallet, t: Transaction): UserWallet = t match {
-    case t: InterestTransaction =>
+  def updateWallet(w: UserWallet, trs: Iterable[Transaction]): UserWallet = {
       // todo. instead use loadauxwalletinfo
-      val upd_int = w.interest.map(_ + t.amount)
-      val upd_trs = w.transactions :+ t
+      val upd_trs = w.transactions ++ trs
       val upd_open_trs = findOpenTransactions(w.owner, upd_trs)
-      w.copy(uncommitted_interest = None, interest = upd_int, transactions = upd_trs,
+      val upd_w = w.copy(balance = None, uncommitted_interest = None, interest = None, transactions = upd_trs,
                           open_transactions = upd_open_trs)
+    AccountingRules.loadInterest(upd_w)
   }
 
-  private def generateId(from: UserAccountPointer, to: UserAccountPointer, amount: BigDecimal) = {
+  def generateId(from: UserAccountPointer, to: UserAccountPointer, amount: BigDecimal): String = {
     val now = getNow
     val gen_id_from = from.user_id + to.user_id + amount.toString() + now + Random.nextDouble()
     val t_id_bytes = global_sha.digest(gen_id_from.getBytes(global_string_format))
@@ -94,28 +100,25 @@ object Wallet {
 
     val from = wallet.owner
     // childless, sorted, oldest first
-    var open_transactions = getOpenTransactions(wallet).sortBy(_.timestamp)
+    var evolvable_dbg = getOpenTransactions(wallet).filter(_.to == wallet.owner).sortBy(_.timestamp)
+    var evolvable = getOpenTransactions(wallet).filter(_.to == wallet.owner).sortBy(_.timestamp)
     var remaining_balance = amount
     var new_transactions = Seq[Transaction]()
 
-    // splitting existing transactions into new transactions
+    // backflowing the existsing transaction if there is enough balance
+    // or creating new money
     while (remaining_balance > 0) {
-      open_transactions.headOption match {
+      evolvable.headOption match {
         case Some(open_trans) =>
           val amount_of_new = if (open_trans.amount < remaining_balance) open_trans.amount else remaining_balance
           remaining_balance -= open_trans.amount
 
-          // in all cases where there is a remaining balance and open transactions
-          new_transactions :+= transBuilder(Option(open_trans), amount_of_new)
-          // old transaction is larger than the remaining balance
-          if (amount_of_new < open_trans.amount) {
-            // this code should be executed at most once
-            val backflow_id = generateId(from, from, -remaining_balance)
-            new_transactions :+= BackflowTransaction(backflow_id, Option(open_trans), from, from,
-              -1 * remaining_balance, getNow)
-          }
+          // this code should be executed at most once
+          val backflow_id = generateId(open_trans.from, open_trans.to, -remaining_balance)
+          new_transactions :+= BackflowTransaction(backflow_id, Option(open_trans), from = open_trans.from,
+            to = open_trans.to, -1 * remaining_balance, getNow)
 
-          open_transactions = open_transactions.tail
+          evolvable = evolvable.tail
         case _ =>
           // case ran out of open transactions
           new_transactions :+= transBuilder(None, remaining_balance)
@@ -134,7 +137,8 @@ object Wallet {
     val parent_ids = transactions collect {
       case p if p.parent isDefined => p.parent.get.transaction_id
     }
-    transactions filter { t => !(parent_ids contains t.transaction_id) & (t.to == owner) }
+    transactions filter { t => !(parent_ids contains t.transaction_id) & t.amount != 0}
+//    transactions filter { t => !(parent_ids contains t.transaction_id) | (t.parent.isEmpty & t.from == owner)}
   }
 
   /** @see [[AccountingRules.loadPrincipal()]] [[AccountingRules.loadInterest()]] */

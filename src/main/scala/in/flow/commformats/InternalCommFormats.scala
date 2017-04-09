@@ -34,7 +34,7 @@ object InternalCommFormats {
   }
 
   case class UserWallet(owner: UserAccountPointer, transactions: Seq[Transaction], open_transactions: Seq[Transaction],
-                        principal: Option[BigDecimal] = None, interest:Option[BigDecimal] = None,
+                        balance: Option[BigDecimal] = None, interest:Option[BigDecimal] = None,
                         uncommitted_interest: Option[BigDecimal] = None)
 
   trait TransactionPointer {
