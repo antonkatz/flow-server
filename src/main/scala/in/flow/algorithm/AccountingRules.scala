@@ -48,7 +48,7 @@ object AccountingRules {
     val now = getNow
     open_trs map { t =>
       val time_diff: BigDecimal = (BigDecimal(now.toEpochMilli) - t.timestamp.toEpochMilli) / 1000
-      val rate = getPerTimeInterestRate(time_diff) - 1
+      val rate = 1 - getPerTimeInterestRate(time_diff)
 
       val a = t.amount * rate
       val t_id = Wallet.generateId(t.from, t.to, a)
@@ -80,6 +80,8 @@ object AccountingRules {
 
   def getPerTimeInterestRate(time_unit: BigDecimal): BigDecimal = {
     val num_of_compounds = AlgorithmSettings.principle_halflife / time_unit
-    Math.pow(2, (1 / num_of_compounds).toDouble)
+    val root = (1 / num_of_compounds).toDouble
+    val rate = Math.pow(0.5, root)
+    rate
   }
 }

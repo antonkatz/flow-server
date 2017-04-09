@@ -42,6 +42,10 @@ object Offers {
     retrieveOffers(user, OfferStatusType.open) flowRight (_ map storableToOffer)
   }
 
+  def getCompletedOffers(user: UserAccount): Future[WithErrorFlow[Iterable[Offer]]] = {
+    retrieveOffers(user, OfferStatusType.completed) flowRight (_ map storableToOffer)
+  }
+
   // todo must check that the user has autority to do so
   def retrieveOffer(offer: OfferPointer): FutureErrorFlow[Offer] = {
     Db.run(DbSchema.offers.filter(_.offerId === offer.offer_id).result) collect {
@@ -142,7 +146,7 @@ object Offers {
     val from = UserAccountPointer(o.from_user_id)
     val to = UserAccountPointer(o.to_user_id)
     val desc = if (o.description.nonEmpty) Option(o.description) else None
-    Offer(o.offer_id, from = from, to = to, o.hours, desc)
+    Offer(o.offer_id, from = from, to = to, o.hours, o.timestamp_updated.toInstant, desc)
   }
 
   /** creates an id for an offer */

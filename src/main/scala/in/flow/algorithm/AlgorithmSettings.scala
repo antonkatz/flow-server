@@ -12,6 +12,6 @@ object AlgorithmSettings {
 //  val principle_double_in: Long = 60 * 60
 
   /** how often to commit uncommitted interest, in millis */
-//  val commit_interest_every: Long = 1000 * 60 * 60 * 24 // every day
-  val commit_interest_every: Long = 1000 * 2 // two seconds
+  val commit_interest_every: Long = 1000 * 60 * 60 * 24 // every day
+//  val commit_interest_every: Long = 1000 * 2 // two seconds
 }

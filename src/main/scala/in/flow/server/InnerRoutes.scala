@@ -2,9 +2,11 @@ package in.flow.server
 
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
+import in.flow.algorithm.AccountingRules
 import in.flow.commformats.ExternalCommFormats._
+import in.flow.commformats.InternalCommFormats._
 import in.flow.security.Security
-import in.flow.users._
+import in.flow.users.{Wallet, _}
 import in.flow.users.registration.Registrar
 import in.flow.{MissingPublicKeyError, MissingUserError, ServerError, UserError, WithErrorFlow, _}
 import scribe._
@@ -12,10 +14,6 @@ import scribe._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.implicitConversions
-import commformats.InternalCommFormats._
-import commformats.ExternalCommFormats._
-import in.flow.algorithm.AccountingRules
-import users.Wallet
 
 /**
   * Done mainly to simplify testing
@@ -68,6 +66,21 @@ trait InnerRoutes extends JsonSupport {
           }
           complete(response)
         }
+      } ~ path("get-balances") {
+        // todo. fix this is hacky
+        logger.debug(s"retrieving balances of connections of user ${Security.getUserId.getOrElse("[missing id]")}")
+        val consf: Future[Set[UserAccount]] =
+          Security.getOrLoadUser map Connections.getVisibleConnectionsSet getOrElse Future(Set())
+        val res: Future[Set[(String, BigDecimal)]] = consf flatMap { cons =>
+          val futures: Set[Future[(String, BigDecimal)]] = cons map { c =>
+            val w = Wallet.getWallet(c) flowRight Wallet.loadAuxWalletInfo
+            val b: Future[BigDecimal] = w flowRight {_.balance getOrElse BigDecimal(0)} map {_.right getOrElse
+              BigDecimal(0)}
+            b map {c.user_id -> _}
+          }
+          Future.sequence(futures)
+        }
+        complete(res)
       }
 
     } ~ pathPrefix("offers") {
@@ -88,6 +101,16 @@ trait InnerRoutes extends JsonSupport {
         logger.debug(s"getting offers for ${Security.getUserId.getOrElse("[missing id]")}")
         val user = Security.getOrLoadUser
         val res: Future[WithErrorFlow[Iterable[Offer]]] = user map { u => Offers.getPendingOffers(u) } getOrElse {
+          Future {
+            Left(MissingUserError())
+          }
+        }
+        val response: Future[(StatusCode, FlowResponse)] = res map { r => getStatusCode(r) -> r.map(offersToResponse) }
+        complete(response)
+      } ~ path("get-completed") {
+        logger.debug(s"getting offers for ${Security.getUserId.getOrElse("[missing id]")}")
+        val user = Security.getOrLoadUser
+        val res: Future[WithErrorFlow[Iterable[Offer]]] = user map { u => Offers.getCompletedOffers(u) } getOrElse {
           Future {
             Left(MissingUserError())
           }
@@ -126,7 +149,9 @@ trait InnerRoutes extends JsonSupport {
     } ~ pathPrefix("wallet") {
       path("get") {
         val user = Security.getOrLoadUser toRight MissingUserError()
-        val wallet = Future(user) flowWith {u => Wallet.getWallet(u)} flowRight {Wallet.loadAuxWalletInfo} flowRight {
+        val wallet = Future(user) flowWith { u => Wallet.getWallet(u) } flowRight {
+          Wallet.loadAuxWalletInfo
+        } flowRight {
           walletToResponse
         }
         val response: Future[(StatusCode, FlowResponse)] = wallet map { fe =>

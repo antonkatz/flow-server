@@ -27,6 +27,10 @@ object Connections {
     getVisibleConnectionsLeveled(user)
   }
 
+  def getVisibleConnectionsSet(user: UserAccount): Future[Set[UserAccount]] = {
+    getVisibleConnectionsFlat(user)
+  }
+
   /**   from user connections finds all users whose ids match
     *  @return list of ids mapped to dispaly names in the same order as the list of ids was given */
   def resolveIdsToNames(ids: Iterable[String], asker: UserAccount): Future[WithErrorFlow[Set[(String, String)]]] = {

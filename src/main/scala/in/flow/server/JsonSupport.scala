@@ -23,7 +23,7 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   /* offers */
 
   implicit val offerReq = jsonFormat3(OfferRequest)
-  implicit val offerResp = jsonFormat5(OfferResponse)
+  implicit val offerResp = jsonFormat6(OfferResponse)
   implicit val offersResp = jsonFormat1(OffersResponse)
   implicit val offerRespWriter = offerResp.write _
   implicit val offersRespWriter = offersResp.write _

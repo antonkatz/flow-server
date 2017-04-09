@@ -24,7 +24,7 @@ object InternalCommFormats {
   }
 
   case class Offer(offer_id: String, from: UserAccountPointer, to: UserAccountPointer, hours: BigDecimal,
-                   description: Option[String] = None) extends OfferPointer
+                   timestamp:Instant, description: Option[String] = None) extends OfferPointer
 
   /* transaction and wallet */
 

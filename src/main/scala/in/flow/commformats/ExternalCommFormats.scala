@@ -28,8 +28,8 @@ object ExternalCommFormats {
 
   case class OfferActionRequest(offer_id: String) extends OfferPointer
 
-  case class OfferResponse(offer_id: String, from_user_id: String, to_user_id: String, hours: BigDecimal, description:
-  Option[String] = None) extends OfferPointer
+  case class OfferResponse(offer_id: String, from_user_id: String, to_user_id: String, hours: BigDecimal,
+                           timestamp: Long, description:Option[String] = None) extends OfferPointer
   {
     def withDescription(description: String): OfferResponse = {
       val d = if (description.isEmpty) None else Option(description)
@@ -40,7 +40,8 @@ object ExternalCommFormats {
   case class OffersResponse(offers: Iterable[OfferResponse])
 
   implicit def offerToResponse(o: Offer): OfferResponse = {
-    OfferResponse(o.offer_id, from_user_id = o.from.user_id, to_user_id = o.to.user_id, o.hours, o.description)
+    OfferResponse(o.offer_id, from_user_id = o.from.user_id, to_user_id = o.to.user_id, o.hours, o.timestamp
+      .toEpochMilli, o.description)
   }
 
   implicit def offersToResponse(os: Iterable[Offer]) = OffersResponse(os map offerToResponse)
